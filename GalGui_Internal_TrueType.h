@@ -1,14 +1,5 @@
 #pragma once
 
-using GalS8 = signed char;
-using GalU8 = unsigned char;
-using GalS16 = signed short;
-using GalU16 = unsigned short;
-using GalS32 = signed int;
-using GalU32 = unsigned int;
-using GalS64 = signed   __int64;
-using GalU64 = unsigned __int64;
-
 struct GalttBuffer
 {
 	unsigned char* data;
@@ -60,7 +51,13 @@ static void GalttGetBakedQuad(
 	bool isOpenGL								// true if opengl fill rule; false if DX9 or earlier
 );
 
-
+static void GalttGetScaleFontVMetrics(
+	const unsigned char* fontData,
+	int index, int size,
+	float* ascent,
+	float* descent,
+	float* lineGap
+);
 
 
 

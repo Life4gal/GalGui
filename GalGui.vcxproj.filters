@@ -31,5 +31,8 @@
     <ClInclude Include="GalGui_Internal_TrueType.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="GalGui_Internal_Helper.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

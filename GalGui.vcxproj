@@ -25,6 +25,7 @@
   <ItemGroup>
     <ClInclude Include="GalGui.h" />
     <ClInclude Include="GalGui_Draw.h" />
+    <ClInclude Include="GalGui_Internal_Helper.h" />
     <ClInclude Include="GalGui_Internal_RectPack.h" />
     <ClInclude Include="GalGui_Internal_TrueType.h" />
   </ItemGroup>

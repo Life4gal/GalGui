@@ -1,20 +1,6 @@
 #pragma once
 
-#include <cfloat>
-#include <cstdarg>
-#include <cstddef>
-#include <cstring>
-#include <cassert>
-
-#ifndef GALGUI_API
-#define GALGUI_API
-#endif
-
-template <typename Exp>
-constexpr void Gal_Assert(Exp exp)
-{
-	assert(exp);
-}
+#include "GalGui_Internal_Helper.h"
 
 struct GalDrawChannel;					// 临时储存用于无序输出的绘图命令,使用于 GalDrawListDataSplitter 和 GalDrawList::ChannelsSplit()
 struct GalDrawCmd;						// GalDrawList中一个单独的子draw命令(通常映射到1个GPU draw调用，除非它是回调)
@@ -43,33 +29,9 @@ struct GalGuiStyle;						// 样式/颜色的运行时数据
 struct GalGuiTextBuffer;				// 用于追加字符
 struct GalGuiTextFilter;				// 用于解析文本并进行过滤
 
-typedef int GalGuiCol;					// -> enum GalGuiCol_             // Enum: A color identifier for styling
-typedef int GalGuiCond;					// -> enum GalGuiCond_            // Enum: A condition for many Set*() functions
-typedef int GalGuiDataType;				// -> enum GalGuiDataType_        // Enum: A primary data type
-typedef int GalGuiDir;					// -> enum GalGuiDir_             // Enum: A cardinal direction
-typedef int GalGuiKey;					// -> enum GalGuiKey_             // Enum: A key identifier (ImGui-side enum)
-typedef int GalGuiNavInput;				// -> enum GalGuiNavInput_        // Enum: An input identifier for navigation
-typedef int GalGuiMouseButton;			// -> enum GalGuiMouseButton_     // Enum: A mouse button identifier (0=left, 1=right, 2=middle)
-typedef int GalGuiMouseCursor;			// -> enum GalGuiMouseCursor_     // Enum: A mouse cursor identifier
-typedef int GalGuiStyleVar;				// -> enum GalGuiStyleVar_        // Enum: A variable identifier for styling
-typedef int GalDrawCornerFlags;			// -> enum GalDrawCornerFlags_    // Flags: for ImDrawList::AddRect(), AddRectFilled() etc.
-typedef int GalDrawListFlags;			// -> enum GalDrawListFlags_      // Flags: for ImDrawList
-typedef int GalFontAtlasFlags;			// -> enum GalFontAtlasFlags_     // Flags: for ImFontAtlas build
-typedef int GalGuiBackendFlags;			// -> enum GalGuiBackendFlags_    // Flags: for io.BackendFlags
-typedef int GalGuiColorEditFlags;		// -> enum GalGuiColorEditFlags_  // Flags: for ColorEdit4(), ColorPicker4() etc.
-typedef int GalGuiConfigFlags;			// -> enum GalGuiConfigFlags_     // Flags: for io.ConfigFlags
-typedef int GalGuiComboFlags;			// -> enum GalGuiComboFlags_      // Flags: for BeginCombo()
-typedef int GalGuiDragDropFlags;		// -> enum GalGuiDragDropFlags_   // Flags: for BeginDragDropSource(), AcceptDragDropPayload()
-typedef int GalGuiFocusedFlags;			// -> enum GalGuiFocusedFlags_    // Flags: for IsWindowFocused()
-typedef int GalGuiHoveredFlags;			// -> enum GalGuiHoveredFlags_    // Flags: for IsItemHovered(), IsWindowHovered() etc.
-typedef int GalGuiInputTextFlags;		// -> enum GalGuiInputTextFlags_  // Flags: for InputText(), InputTextMultiline()
-typedef int GalGuiKeyModFlags;			// -> enum GalGuiKeyModFlags_     // Flags: for io.KeyMods (Ctrl/Shift/Alt/Super)
-typedef int GalGuiPopupFlags;			// -> enum GalGuiPopupFlags_      // Flags: for OpenPopup*(), BeginPopupContext*(), IsPopupOpen()
-typedef int GalGuiSelectableFlags;		// -> enum GalGuiSelectableFlags_ // Flags: for Selectable()
-typedef int GalGuiTabBarFlags;			// -> enum GalGuiTabBarFlags_     // Flags: for BeginTabBar()
-typedef int GalGuiTabItemFlags;			// -> enum GalGuiTabItemFlags_    // Flags: for BeginTabItem()
-typedef int GalGuiTreeNodeFlags;		// -> enum GalGuiTreeNodeFlags_   // Flags: for TreeNode(), TreeNodeEx(), CollapsingHeader()
-typedef int GalGuiWindowFlags;			// -> enum GalGuiWindowFlags_     // Flags: for Begin(), BeginChild()
+
+enum class EnumGalGuiCol;
+enum class EnumGalGuiDir;
 
 // 一些其他类型
 #ifndef GalTextureID
@@ -81,64 +43,6 @@ typedef int (*GalGuiInputTextCallback)(GalGuiInputTextCallbackData* data);
 // 函数指针 GalGuiSizeCallback
 typedef void (*GalGuiSizeCallback)(GalGuiSizeCallbackData* data);
 
-// 字符解码
-typedef unsigned short GalWChar16;
-typedef unsigned int GalWChar32;
-#ifdef GALGUI_USE_WCHAR32
-typedef GalWChar32 GalWChar;
-#else
-typedef GalWChar16 GalWChar;
-#endif
-
-// 二维向量,通常用于储存位置或者大小
-struct GalVec2
-{
-	float x;
-	float y;
-
-    GalVec2() = default;
-    ~GalVec2() = default;
-
-    GalVec2(const GalVec2&) = default;
-    GalVec2& operator=(const GalVec2&) = default;
-
-    GalVec2(GalVec2&&) = default;
-    GalVec2& operator=(GalVec2&&) = default;
-
-    constexpr GalVec2(const float x, const float y) : x(x), y(y) {}
-    explicit GalVec2(_In_reads_(2) const float* pArray) : x(pArray[0]), y(pArray[1]) {}
-
-	explicit operator float*()
-    {
-        return reinterpret_cast<float*>(this);
-    }
-};
-
-//四维向量,通常用于储存颜色
-struct GalVec4
-{
-    float x;
-    float y;
-    float z;
-    float w;
-	
-    GalVec4() = default;
-    ~GalVec4() = default;
-
-    GalVec4(const GalVec4&) = default;
-    GalVec4& operator=(const GalVec4&) = default;
-
-    GalVec4(GalVec4&&) = default;
-    GalVec4& operator=(GalVec4&&) = default;
-
-    constexpr GalVec4(const float x, const float y, const float z, const float w) : x(x), y(y), z(z), w(w) {}
-    explicit GalVec4(_In_reads_(4) const float* pArray) : x(pArray[0]), y(pArray[1]), z(pArray[2]), w(pArray[3]) {}
-
-    explicit operator float*()
-    {
-        return reinterpret_cast<float*>(this);
-    }
-};
 
 namespace GalGui
 {
@@ -146,33 +50,33 @@ namespace GalGui
 	// 默认情况下,每个上下文都会创建自己的 GalFontAtlas
 	// 你可以自己实例化一个并传给 CreateContext() 以在上下文中共享该字符图集
 	// 这些函数不依赖于当前的上下文
-    GALGUI_API GalGuiContext*           CreateContext(GalFontAtlas* sharedFontAtlas = nullptr);
-    GALGUI_API void                     DestroyContext(GalGuiContext* context = nullptr);               // 传入空指针则销毁当前上下文
-    GALGUI_API GalGuiContext*           GetCurrentContext();
-    GALGUI_API void                     SetCurrentContext(GalGuiContext* context);
+    GalGuiContext*           CreateContext(GalFontAtlas* sharedFontAtlas = nullptr);
+    void                     DestroyContext(GalGuiContext* context = nullptr);               // 传入空指针则销毁当前上下文
+    GalGuiContext*           GetCurrentContext();
+    void                     SetCurrentContext(GalGuiContext* context);
 
 	// 主函数
-    GALGUI_API GalGuiIO&                GetIO();
-    GALGUI_API GalGuiStyle&             GetStyle();
-    GALGUI_API void                     NewFrame();
-    GALGUI_API void                     EndFrame();
-    GALGUI_API void                     Render();
-    GALGUI_API GalDrawData*             GetDrawData();
+    GalGuiIO&                GetIO();
+    GalGuiStyle&             GetStyle();
+    void                     NewFrame();
+    void                     EndFrame();
+    void                     Render();
+    GalDrawData*             GetDrawData();
 
 	// 用于演示,测试,获取信息
-    GALGUI_API void                     ShowDemoWindow(bool& open);
-    GALGUI_API void                     ShowAboutWindow(bool& open);
-    GALGUI_API void                     ShowMetricsWindow(bool& open);
-    GALGUI_API void                     ShowStyleEditor(GalGuiStyle& style);
-    GALGUI_API bool                     ShowStyleSelector(const char* label);
-    GALGUI_API void                     ShowFontSelector(const char* label);
-    GALGUI_API void                     ShowUserGuide();
-    GALGUI_API const char*              GetVersion();
+    void                     ShowDemoWindow(bool& open);
+    void                     ShowAboutWindow(bool& open);
+    void                     ShowMetricsWindow(bool& open);
+    void                     ShowStyleEditor(GalGuiStyle& style);
+    bool                     ShowStyleSelector(const char* label);
+    void                     ShowFontSelector(const char* label);
+    void                     ShowUserGuide();
+    const char*              GetVersion();
 
 	// 样式
-    GALGUI_API void                     StyleColorsDark(GalGuiStyle& style);
-	GALGUI_API void                     StyleColorsClassic(GalGuiStyle& style);
-	GALGUI_API void                     StyleColorsLight(GalGuiStyle& style);
+    void                     StyleColorsDark(GalGuiStyle& style);
+	void                     StyleColorsClassic(GalGuiStyle& style);
+	void                     StyleColorsLight(GalGuiStyle& style);
 
 
 
