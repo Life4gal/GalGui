@@ -33,16 +33,6 @@ struct GalGuiTextFilter;				// 用于解析文本并进行过滤
 enum class EnumGalGuiCol;
 enum class EnumGalGuiDir;
 
-// 一些其他类型
-#ifndef GalTextureID
-typedef void* GalTextureID;				// 后台缓冲区纹理的类型
-#endif
-typedef unsigned int GalGuiID;			// 一个独有的 ID ,通常来自字符串的哈希值
-// 函数指针 GalGuiInputTextCallback
-typedef int (*GalGuiInputTextCallback)(GalGuiInputTextCallbackData* data);
-// 函数指针 GalGuiSizeCallback
-typedef void (*GalGuiSizeCallback)(GalGuiSizeCallbackData* data);
-
 
 namespace GalGui
 {
