@@ -33,8 +33,9 @@ struct GalGuiWindow;                 // Storage for one window
 struct GalGuiWindowTempData;         // Temporary storage for one window (that's the data which in theory we could ditch at the end of the frame)
 struct GalGuiWindowSettings;         // Storage for a window .ini settings (we keep one of those even if the actual window wasn't instanced during this session)
 
-using GalGuiCol = int; 	// -> enum GalGuiCol_             // Enum: A color identifier for styling
-enum class EnumGalGuiCol
+using GalGuiCol = int; 
+// Enum: A color identifier for styling
+enum class EnumGalGuiCol : GalGuiCol
 {
 	GALGUI_COL_TEXT,
 	GALGUI_COL_TEXT_DISABLE,
@@ -87,8 +88,9 @@ enum class EnumGalGuiCol
 	GALGUI_COL_COUNT
 };
 
-using GalGuiCond = int; 	// -> enum GalGuiCond_            // Enum: A condition for many Set*() functions
-enum class EnumGalGuiCond
+using GalGuiCond = int;
+// Enum: A condition for many Set*() functions
+enum class EnumGalGuiCond : GalGuiCond
 {
 	GALGUI_COND_NONE = 0,
 	GALGUI_COND_ALWAYS = 1 << 0,
@@ -96,8 +98,6 @@ enum class EnumGalGuiCond
 	GALGUI_COND_FIRST_USE_EVER = 1 << 2,
 	GALGUI_COND_APPEARING = 1 << 3
 };
-
-using GalGuiDataType = int; 	// -> enum GalGuiDataType_        // Enum: A primary data type
 
 using GalS8 = signed char;
 using GalU8 = unsigned char;
@@ -107,7 +107,10 @@ using GalS32 = signed int;
 using GalU32 = unsigned int;
 using GalS64 = signed   __int64;
 using GalU64 = unsigned __int64;
-enum class EnumGalGuiDataType
+
+using GalGuiDataType = int;
+// Enum: A primary data type
+enum class EnumGalGuiDataType : GalGuiDataType
 {
 	GALGUI_DATA_TYPE_S8,
 	GALGUI_DATA_TYPE_U8,
@@ -121,9 +124,16 @@ enum class EnumGalGuiDataType
 	GALGUI_DATA_TYPE_DOUBLE,
 	GALGUI_DATA_TYPE_COUNT
 };
+enum class EnumGalGuiDataPrivateType : GalGuiDataType
+{
+	GALGUI_DATA_PRIVATE_TYPE_STRING = static_cast<GalGuiDataType>(EnumGalGuiDataType::GALGUI_DATA_TYPE_COUNT) + 1,
+	GALGUI_DATA_PRIVATE_TYPE_POINTER,
+	GALGUI_DATA_PRIVATE_TYPE_ID
+};
 
-using GalGuiDir = int;	// -> enum GalGuiDir_             // Enum: A cardinal direction
-enum class EnumGalGuiDir
+using GalGuiDir = int;
+// Enum: A cardinal direction
+enum class EnumGalGuiDir : GalGuiDir
 {
 	GALGUI_DIR_NONE = -1,
 	GALGUI_DIR_LEFT = 0,
@@ -133,8 +143,9 @@ enum class EnumGalGuiDir
 	GALGUI_DIR_COUNT
 };
 
-using GalGuiKey = int;	// -> enum GalGuiKey_             // Enum: A key identifier (ImGui-side enum)
-enum class EnumGalGuiKey
+using GalGuiKey = int;
+// Enum: A key identifier (GalGui-side enum)
+enum class EnumGalGuiKey : GalGuiKey
 {
 	GALGUI_KEY_TAB,
 	GALGUI_KEY_LEFT_ARROW,
@@ -161,10 +172,11 @@ enum class EnumGalGuiKey
 	GALGUI_KEY_COUNT
 };
 
-using GalGuiNavInput = int;	// -> enum GalGuiNavInput_        // Enum: An input identifier for navigation
-enum class EnumGalGuiNavInput
+using GalGuiNavInput = int;	
+// Enum: An input identifier for navigation
+enum class EnumGalGuiNavInput : GalGuiNavInput
 {
-	// TODO 不需要
+	// TODO 也许不需要
 	GALGUI_NAV_INPUT_ACTIVATE,
 	GALGUI_NAV_INPUT_CANCEL,
 	GALGUI_NAV_INPUT_INPUT,
@@ -192,8 +204,9 @@ enum class EnumGalGuiNavInput
 	GALGUI_NAV_INPUT_INTERNAL_START_ = GALGUI_NAV_INPUT_KEY_MENU_
 };
 
-using GalGuiMouseButton = int;// -> enum GalGuiMouseButton_     // Enum: A mouse button identifier (0=left, 1=right, 2=middle)
-enum class EnumGalGuiMouseButton
+using GalGuiMouseButton = int;
+// Enum: A mouse button identifier (0=left, 1=right, 2=middle)
+enum class EnumGalGuiMouseButton : GalGuiMouseButton
 {
 	GALGUI_MOUSE_BUTTON_LEFT = 0,
 	GALGUI_MOUSE_BUTTON_RIGHT = 1,
@@ -203,8 +216,9 @@ enum class EnumGalGuiMouseButton
 	GALGUI_MOUSE_BUTTON_COUNT = 5
 };
 
-using GalGuiMouseCursor = int;// -> enum GalGuiMouseCursor_     // Enum: A mouse cursor identifier
-enum class EnumGalGuiMouseCursor
+using GalGuiMouseCursor = int;
+// Enum: A mouse cursor identifier
+enum class EnumGalGuiMouseCursor : GalGuiMouseCursor
 {
 	GALGUI_MOUSE_CURSOR_NONE = -1,
 	GALGUI_MOUSE_CURSOR_ARROW = 0,
@@ -219,8 +233,9 @@ enum class EnumGalGuiMouseCursor
 	GALGUI_MOUSE_CURSOR_COUNT
 };
 
-using GalGuiStyleVar = int;// -> enum GalGuiStyleVar_        // Enum: A variable identifier for styling
-enum class EnumGalGuiStyleVar
+using GalGuiStyleVar = int;
+// Enum: A variable identifier for styling
+enum class EnumGalGuiStyleVar : GalGuiStyleVar
 {
 	GALGUI_STYLE_VAR_ALPHA,
 	GALGUI_STYLE_VAR_WINDOW_PADDING,
@@ -248,12 +263,55 @@ enum class EnumGalGuiStyleVar
 	GALGUI_STYLE_VAR_COUNT
 };
 
-using GalDrawCornerFlags = int;	// -> enum GalDrawCornerFlags_    // Flags: for ImDrawList::AddRect(), AddRectFilled() etc.
-using GalDrawListFlags = int;// -> enum GalDrawListFlags_      // Flags: for ImDrawList
-using GalFontAtlasFlags = int;	// -> enum GalFontAtlasFlags_     // Flags: for ImFontAtlas build
+using GalDrawCornerFlags = int;	
+// Flags: for GalDrawList::AddRect(), AddRectFilled() etc.
+enum class EnumGalDrawCornerFlags : GalDrawCornerFlags
+{
+	GAL_DRAW_CORNER_FLAGS_NONE = 0,
+	GAL_DRAW_CORNER_FLAGS_TOP_LEFT = 1 << 0,
+	GAL_DRAW_CORNER_FLAGS_TOP_RIGHT = 1 << 1,
+	GAL_DRAW_CORNER_FLAGS_BOTTOM_LEFT = 1 << 2,
+	GAL_DRAW_CORNER_FLAGS_BOTTOM_RIGHT = 1 << 3,
+	GAL_DRAW_CORNER_FLAGS_TOP =
+		GAL_DRAW_CORNER_FLAGS_TOP_LEFT |
+		GAL_DRAW_CORNER_FLAGS_TOP_RIGHT,
+	GAL_DRAW_CORNER_FLAGS_BOTTOM =
+		GAL_DRAW_CORNER_FLAGS_BOTTOM_LEFT |
+		GAL_DRAW_CORNER_FLAGS_BOTTOM_RIGHT,
+	GAL_DRAW_CORNER_FLAGS_LEFT =
+		GAL_DRAW_CORNER_FLAGS_TOP_LEFT |
+		GAL_DRAW_CORNER_FLAGS_BOTTOM_LEFT,
+	GAL_DRAW_CORNER_FLAGS_RIGHT =
+		GAL_DRAW_CORNER_FLAGS_TOP_RIGHT |
+		GAL_DRAW_CORNER_FLAGS_BOTTOM_RIGHT,
+	
+	GAL_DRAW_CORNER_FLAGS_ALL = 0XF
+};
 
-using GalGuiBackendFlags = int;	// -> enum GalGuiBackendFlags_    // Flags: for io.BackendFlags
-enum class EnumGalGuiBackendFlags
+using GalDrawListFlags = int;
+// Flags: for GalDrawList
+enum class EnumGalDrawListFlags : GalDrawListFlags
+{
+	GAL_DRAW_LIST_FLAGS_NONE = 0,
+	GAL_DRAW_LIST_FLAGS_ANTIALIASED_LINE = 1 << 0,
+	GAL_DRAW_LIST_FLAGS_ANTIALIASED_LINE_USE_TEX = 1 << 1,
+	GAL_DRAW_LIST_FLAGS_ANTIALIASED_FILL = 1 << 2,
+	GAL_DRAW_LIST_FLAGS_ALLOW_VERTEX_OFFSET = 1 << 3
+};
+
+using GalFontAtlasFlags = int;
+// Flags: for GalFontAtlas build
+enum class EnumGalFontAtlasFlags : GalFontAtlasFlags
+{
+	GAL_FONT_ATLAS_FLAGS_NONE = 0,
+	GAL_FONT_ATLAS_FLAGS_NO_POWER_OF_TWO_HEIGHT = 1 << 0,
+	GAL_FONT_ATLAS_FLAGS_NO_MOUSE_CURSORS = 1 << 1,
+	GAL_FONT_ATLAS_FLAGS_NO_BAKED_LINES = 1 << 2
+};
+
+using GalGuiBackendFlags = int;	
+// Flags: for io.BackendFlags
+enum class EnumGalGuiBackendFlags : GalGuiBackendFlags
 {
 	GALGUI_BACKEND_FLAGS_NONE = 0,
 	GALGUI_BACKEND_FLAGS_HAS_GAMEPAD = 1 << 0,
@@ -262,8 +320,9 @@ enum class EnumGalGuiBackendFlags
 	GALGUI_BACKEND_FLAGS_RENDERER_HAS_VERTEX_OFFSET = 1 << 3
 };
 
-using GalGuiColorEditFlags = int;// -> enum GalGuiColorEditFlags_  // Flags: for ColorEdit4(), ColorPicker4() etc.
-enum class EnumGalGuiColorEditFlags
+using GalGuiColorEditFlags = int;
+// Flags: for ColorEdit4(), ColorPicker4() etc.
+enum class EnumGalGuiColorEditFlags : GalGuiColorEditFlags
 {
 	GALGUI_COLOR_EDIT_FLAGS_NONE = 0,
 	GALGUI_COLOR_EDIT_FLAGS_NO_ALPHA = 1 << 1,
@@ -314,8 +373,9 @@ enum class EnumGalGuiColorEditFlags
 		GALGUI_COLOR_EDIT_FLAGS_INPUT_HSV
 };
 
-using GalGuiConfigFlags = int;	// -> enum GalGuiConfigFlags_     // Flags: for io.ConfigFlags
-enum class EnumGalGuiConfigFlags
+using GalGuiConfigFlags = int;
+// Flags: for io.ConfigFlags
+enum class EnumGalGuiConfigFlags : GalGuiConfigFlags
 {
 	GALGUI_CONFIG_FLAGS_NONE = 0,
 	GALGUI_CONFIG_FLAGS_NAV_ENABLE_KEYBOARD = 1 << 0,
@@ -326,8 +386,9 @@ enum class EnumGalGuiConfigFlags
 	GALGUI_CONFIG_FLAGS_NO_MOUSE_CURSOR_CHANGE = 1 << 5,
 };
 
-using GalGuiComboFlags = int;// -> enum GalGuiComboFlags_      // Flags: for BeginCombo()
-enum class EnumGalGuiComboFlags
+using GalGuiComboFlags = int;
+// Flags: for BeginCombo()
+enum class EnumGalGuiComboFlags : GalGuiComboFlags
 {
 	GALGUI_COMBO_FLAGS_NONE = 0,
 	GALGUI_COMBO_FLAGS_POPUP_ALIGN_LEFT = 1 << 0,
@@ -344,8 +405,9 @@ enum class EnumGalGuiComboFlags
 		GALGUI_COMBO_FLAGS_HEIGHT_LARGEST
 };
 
-using GalGuiDragDropFlags = int;// -> enum GalGuiDragDropFlags_   // Flags: for BeginDragDropSource(), AcceptDragDropPayload()
-enum class EnumGalGuiDragDropFlags
+using GalGuiDragDropFlags = int;
+// Flags: for BeginDragDropSource(), AcceptDragDropPayload()
+enum class EnumGalGuiDragDropFlags : GalGuiDragDropFlags
 {
 	GALGUI_DRAG_DROP_FLAGS_NONE = 0,
 	
@@ -364,8 +426,9 @@ enum class EnumGalGuiDragDropFlags
 		GALGUI_DRAG_DROP_FLAGS_ACCEPT_NO_DRAW_DEFAULT_RECT
 };
 
-using GalGuiFocusedFlags = int;// -> enum GalGuiFocusedFlags_    // Flags: for IsWindowFocused()
-enum class EnumGalGuiFocusedFlags
+using GalGuiFocusedFlags = int;
+// Flags: for IsWindowFocused()
+enum class EnumGalGuiFocusedFlags : GalGuiFocusedFlags
 {
 	GALGUI_FOCUSED_FLAGS_NONE = 0,
 	GALGUI_FOCUSED_FLAGS_CHILD_WINDOWS = 1 << 0,
@@ -376,8 +439,9 @@ enum class EnumGalGuiFocusedFlags
 		GALGUI_FOCUSED_FLAGS_ROOT_WINDOW
 };
 
-using GalGuiHoveredFlags = int;// -> enum GalGuiHoveredFlags_    // Flags: for IsItemHovered(), IsWindowHovered() etc.
-enum class EnumGalGuiHoveredFlags
+using GalGuiHoveredFlags = int;
+// Flags: for IsItemHovered(), IsWindowHovered() etc.
+enum class EnumGalGuiHoveredFlags : GalGuiHoveredFlags
 {
 	GALGUI_HOVERED_FLAGS_NONE = 0,
 	GALGUI_HOVERED_FLAGS_CHILD_WINDOWS = 1 << 0,
@@ -397,10 +461,39 @@ enum class EnumGalGuiHoveredFlags
 		GALGUI_HOVERED_FLAGS_CHILD_WINDOWS 
 };
 
-using GalGuiInputTextFlags = int;// -> enum GalGuiInputTextFlags_  // Flags: for InputText(), InputTextMultiline()
+using GalGuiInputTextFlags = int;
+// Flags: for InputText(), InputTextMultiline()
+enum class EnumGalGuiInputTextFlags : GalGuiInputTextFlags
+{
+	GALGUI_INPUT_TEXT_FLAGS_NONE = 0,
+	GALGUI_INPUT_TEXT_FLAGS_CHARS_DECIMAL = 1 << 0,
+	GALGUI_INPUT_TEXT_FLAGS_CHARS_HEXADECIMAL = 1 << 1,
+	GALGUI_INPUT_TEXT_FLAGS_CHARS_UPPERCASE = 1 << 2,
+	GALGUI_INPUT_TEXT_FLAGS_CHARS_NO_BLANK = 1 << 3,
+	GALGUI_INPUT_TEXT_FLAGS_AUTO_SELECT_ALL = 1 << 4,
+	GALGUI_INPUT_TEXT_FLAGS_ENTER_RETURNS_TRUE = 1 << 5,
+	GALGUI_INPUT_TEXT_FLAGS_CALLBACK_COMPLETION = 1 << 6,
+	GALGUI_INPUT_TEXT_FLAGS_CALLBACK_HISTORY = 1 << 7,
+	GALGUI_INPUT_TEXT_FLAGS_CALLBACK_ALWAYS = 1 << 8,
+	GALGUI_INPUT_TEXT_FLAGS_CALLBACK_CHAR_FILTER = 1 << 9,
+	GALGUI_INPUT_TEXT_FLAGS_ALLOW_TAB_INPUT = 1 << 10,
+	GALGUI_INPUT_TEXT_FLAGS_CTRL_ENTER_FOR_NEW_LINE = 1 << 11,
+	GALGUI_INPUT_TEXT_FLAGS_NO_HORIZONTAL_SCROLL = 1 << 12,
+	GALGUI_INPUT_TEXT_FLAGS_ALWAYS_INSERT_MODE = 1 << 13,
+	GALGUI_INPUT_TEXT_FLAGS_READONLY = 1 << 14,
+	GALGUI_INPUT_TEXT_FLAGS_PASSWORD = 1 << 15,
+	GALGUI_INPUT_TEXT_FLAGS_NO_UNDO_REDO = 1 << 16,
+	GALGUI_INPUT_TEXT_FLAGS_CHARS_SCIENTIFIC = 1 << 17,
+	GALGUI_INPUT_TEXT_FLAGS_CALLBACK_RESIZE = 1 << 18,
 
-using GalGuiKeyModFlags = int;// -> enum GalGuiKeyModFlags_     // Flags: for io.KeyMods (Ctrl/Shift/Alt/Super)
-enum class EnumGalGuiKeyModeFlags
+	// [Internal]
+	GALGUI_INPUT_TEXT_FLAGS_MULTILINE = 1 << 20,
+	GALGUI_INPUT_TEXT_FLAGS_NO_MARK_EDITED = 1 << 21
+};
+
+using GalGuiKeyModFlags = int;
+// Flags: for io.keyMods (Ctrl/Shift/Alt/Super)
+enum class EnumGalGuiKeyModFlags : GalGuiKeyModFlags
 {
 	GALGUI_KEY_MOD_FLAGS_NONE = 0,
 	GALGUI_KEY_MOD_FLAGS_CTRL = 1 << 0,
@@ -409,8 +502,9 @@ enum class EnumGalGuiKeyModeFlags
 	GALGUI_KEY_MOD_FLAGS_SUPER = 1 << 3
 };
 
-using GalGuiPopupFlags = int;// -> enum GalGuiPopupFlags_      // Flags: for OpenPopup*(), BeginPopupContext*(), IsPopupOpen()
-enum class EnumGalGuiPopupFlags
+using GalGuiPopupFlags = int;
+// Flags: for OpenPopup*(), BeginPopupContext*(), IsPopupOpen()
+enum class EnumGalGuiPopupFlags : GalGuiPopupFlags
 {
 	GALGUI_POPUP_FLAGS_NONE = 0,
 	GALGUI_POPUP_FLAGS_MOUSE_BUTTON_LEFT = 0,
@@ -427,8 +521,9 @@ enum class EnumGalGuiPopupFlags
 		GALGUI_POPUP_FLAGS_ANY_POPUP_LEVEL
 };
 
-using GalGuiSelectableFlags = int;// -> enum GalGuiSelectableFlags_ // Flags: for Selectable()
-enum class EnumGalGuiSelectableFlags
+using GalGuiSelectableFlags = int;
+// Flags: for Selectable()
+enum class EnumGalGuiSelectableFlags : GalGuiSelectableFlags
 {
 	GALGUI_SELECTABLE_FLAGS_NONE = 0,
 	GALGUI_SELECTABLE_FLAGS_DOT_NO_CLOSE_POPUP = 1 << 0,
@@ -437,9 +532,19 @@ enum class EnumGalGuiSelectableFlags
 	GALGUI_SELECTABLE_FLAGS_DISABLE = 1 << 3,
 	GALGUI_SELECTABLE_FLAGS_ALLOW_ITEM_OVERLAP = 1 << 4
 };
+enum class EnumGalGuiSelectablePrivateFlags : GalGuiSelectableFlags
+{
+	GALGUI_SELECTABLE_PRIVATE_FLAGS_NO_HOLDING_ACTIVE_ID = 1 << 20,
+	GALGUI_SELECTABLE_PRIVATE_FLAGS_SELECT_ON_CLICK = 1 << 21,
+	GALGUI_SELECTABLE_PRIVATE_FLAGS_SELECT_ON_RELEASE = 1 << 22,
+	GALGUI_SELECTABLE_PRIVATE_FLAGS_SPAN_AVAIL_WIDTH = 1 << 23,
+	GALGUI_SELECTABLE_PRIVATE_FLAGS_DRAW_HOVERED_WHEN_HELD = 1 << 24,
+	GALGUI_SELECTABLE_PRIVATE_FLAGS_SET_NAV_ID_ON_HOVER = 1 << 25
+};
 
-using GalGuiTabBarFlags = int;// -> enum GalGuiTabBarFlags_     // Flags: for BeginTabBar()
-enum class EnumGalGuiTabBarFlags
+using GalGuiTabBarFlags = int;
+// Flags: for BeginTabBar()
+enum class EnumGalGuiTabBarFlags : GalGuiTabBarFlags
 {
 	GALGUI_TAB_BAR_FLAGS_NONE = 0,
 	GALGUI_TAB_BAR_FLAGS_REORDER = 1 << 0,
@@ -455,9 +560,16 @@ enum class EnumGalGuiTabBarFlags
 		GALGUI_TAB_BAR_FLAGS_FITTING_POLICY_SCROLL,
 	GALGUI_TAB_BAR_FLAGS_FITTING_POLICY_DEFAULT = GALGUI_TAB_BAR_FLAGS_FITTING_POLICY_RESIZE_DOWN
 };
+enum class EnumGalGuiTabBarPrivateFlags : GalGuiTabBarFlags
+{
+	GALGUI_TAB_BAR_PRIVATE_FLAGS_DOCK_NODE = 1 << 20,
+	GALGUI_TAB_BAR_PRIVATE_FLAGS_IS_FOCUSED = 1 << 21,
+	GALGUI_TAB_BAR_PRIVATE_FLAGS_SAVE_SETTINGS = 1 << 22
+};
 
-using GalGuiTabItemFlags = int;// -> enum GalGuiTabItemFlags_    // Flags: for BeginTabItem()
-enum class EnumGalGuiTabItemFlags
+using GalGuiTabItemFlags = int;
+// Flags: for BeginTabItem()
+enum class EnumGalGuiTabItemFlags : GalGuiTabItemFlags
 {
 	GALGUI_TAB_ITEM_FLAGS_NONE = 0,
 	GALGUI_TAB_ITEM_FLAGS_UNSAVED_DOCUMENT = 1 << 0,
@@ -466,9 +578,14 @@ enum class EnumGalGuiTabItemFlags
 	GALGUI_TAB_ITEM_FLAGS_NO_PUSH_ID = 1 << 3,
 	GALGUI_TAB_ITEM_FLAGS_NO_TOOLTIP = 1 << 4
 };
+enum class EnumGalGuiTabItemPrivateFlags : GalGuiTabItemFlags
+{
+	GALGUI_TAB_ITEM_FLAGS_NO_CLOSE_BUTTON = 1 << 20
+};
 
-using GalGuiTreeNodeFlags = int;// -> enum GalGuiTreeNodeFlags_   // Flags: for TreeNode(), TreeNodeEx(), CollapsingHeader()
-enum class EnumGalGuiTreeNodeFlags
+using GalGuiTreeNodeFlags = int;
+// Flags: for TreeNode(), TreeNodeEx(), CollapsingHeader()
+enum class EnumGalGuiTreeNodeFlags : GalGuiTreeNodeFlags
 {
 	GALGUI_TREE_NODE_FLAGS_NONE = 0,
 	GALGUI_TREE_NODE_FLAGS_SELECTED = 1 << 0,
@@ -491,8 +608,58 @@ enum class EnumGalGuiTreeNodeFlags
 		GALGUI_TREE_NODE_FLAGS_NO_TREE_PUSH_ON_OPEN |
 		GALGUI_TREE_NODE_FLAGS_NO_AUTO_OPEN_ON_LOG
 };
+enum class EnumGalGuiTreeNodePrivateFlags : GalGuiTreeNodeFlags
+{
+	GALGUI_TREE_NODE_PRIVATE_FLAGS_CLIP_LABEL_FOR_TRAILING_BUTTON = 1 << 20
+};
 
-using GalGuiWindowFlags = int;	// -> enum GalGuiWindowFlags_     // Flags: for Begin(), BeginChild()
+using GalGuiWindowFlags = int;
+// Flags: for Begin(), BeginChild()
+enum class EnumGalGuiWindowFlags : GalGuiWindowFlags
+{
+	GALGUI_WINDOW_FLAGS_NONE = 0,
+	GALGUI_WINDOW_FLAGS_NO_TITLEBAR = 1 << 0,
+	GALGUI_WINDOW_FLAGS_NO_RESIZE = 1 << 1,
+	GALGUI_WINDOW_FLAGS_NO_MOVE = 1 << 2,
+	GALGUI_WINDOW_FLAGS_NO_SCROLLBAR = 1 << 3,
+	GALGUI_WINDOW_FLAGS_NO_SCROLL_WITH_MOUSE = 1 << 4,
+	GALGUI_WINDOW_FLAGS_NO_COLLAPSE = 1 << 5,
+	GALGUI_WINDOW_FLAGS_ALWAYS_AUTO_RESIZE = 1 << 6,
+	GALGUI_WINDOW_FLAGS_NO_BACKGROUND = 1 << 7,
+	GALGUI_WINDOW_FLAGS_NO_SAVED_SETTING = 1 << 8,
+	GALGUI_WINDOW_FLAGS_NO_MOUSE_INPUT = 1 << 9,
+	GALGUI_WINDOW_FLAGS_MENU_BAR = 1 << 10,
+	GALGUI_WINDOW_FLAGS_HORIZONTAL_SCROLLBAR = 1 << 11,
+	GALGUI_WINDOW_FLAGS_NO_FOCUS_ON_APPEARING = 1 << 12,
+	GALGUI_WINDOW_FLAGS_NO_BRING_TO_FRONT_ON_FOCUS = 1 << 13,
+	GALGUI_WINDOW_FLAGS_ALWAYS_VERTICAL_SCROLLBAR = 1 << 14,
+	GALGUI_WINDOW_FLAGS_ALWAYS_HORIZONTAL_SCROLLBAR = 1 << 15,
+	GALGUI_WINDOW_FLAGS_ALWAYS_USE_WINDOW_PADDING = 1 << 16,
+	GALGUI_WINDOW_FLAGS_NO_NAV_INPUTS = 1 << 18,
+	GALGUI_WINDOW_FLAGS_NO_NAV_FOCUS = 1 << 19,
+	GALGUI_WINDOW_FLAGS_UNSAVED_DOCUMENT = 1 << 20,
+	GALGUI_WINDOW_FLAGS_NO_NAV = 
+		GALGUI_WINDOW_FLAGS_NO_NAV_INPUTS | 
+		GALGUI_WINDOW_FLAGS_NO_NAV_FOCUS,
+	GALGUI_WINDOW_FLAGS_NO_DECORATION =
+		GALGUI_WINDOW_FLAGS_NO_TITLEBAR |
+		GALGUI_WINDOW_FLAGS_NO_RESIZE |
+		GALGUI_WINDOW_FLAGS_NO_SCROLLBAR |
+		GALGUI_WINDOW_FLAGS_NO_COLLAPSE,
+	GALGUI_WINDOW_FLAGS_NO_INPUTS =
+		GALGUI_WINDOW_FLAGS_NO_MOUSE_INPUT |
+		GALGUI_WINDOW_FLAGS_NO_NAV_INPUTS |
+		GALGUI_WINDOW_FLAGS_NO_NAV_FOCUS,
+
+	// [Internal]
+	GALGUI_WINDOW_FLAGS_NAV_FLATTENED = 1 << 23,
+	GALGUI_WINDOW_FLAGS_CHILD_WINDOW = 1 << 24,
+	GALGUI_WINDOW_FLAGS_TOOLTIP = 1 << 25,
+	GALGUI_WINDOW_FLAGS_POPUP = 1 << 26,
+	GALGUI_WINDOW_FLAGS_MODAL = 1 << 27,
+	GALGUI_WINDOW_FLAGS_CHILD_MENU = 1 << 28
+};
+
 using GalTextureID = void*;
 using GalGuiID = unsigned int;// 一个独有的 ID ,通常来自字符串的哈希值
 
@@ -502,25 +669,247 @@ using GalGuiID = unsigned int;// 一个独有的 ID ,通常来自字符串的哈
 // 函数指针 GalGuiSizeCallback
 //typedef void (*GalGuiSizeCallback)(GalGuiSizeCallbackData* data);
 
-
-
 using GalGuiLayoutType = int;
+enum class EnumGalGuiLayoutType : GalGuiLayoutType
+{
+	GALGUI_LAYOUT_TYPE_HORIZONTAL = 0,
+	GALGUI_LAYOUT_TYPE_VERTICAL = 1
+};
+
 using GalGuiButtonFlags = int;
+enum class EnumGalGuiButtonFlags : GalGuiButtonFlags
+{
+	GALGUI_BUTTON_FLAGS_NONE = 0,
+	GALGUI_BUTTON_FLAGS_REPEAT = 1 << 0,
+	GALGUI_BUTTON_FLAGS_PRESSED_ON_CLICK = 1 << 1,
+	GALGUI_BUTTON_FLAGS_PRESSED_ON_CLICK_RELEASE = 1 << 2,
+	GALGUI_BUTTON_FLAGS_PRESSED_ON_CLICK_RELEASE_ANY_WHERE = 1 << 3,
+	GALGUI_BUTTON_FLAGS_PRESSED_ON_RELEASE = 1 << 4,
+	GALGUI_BUTTON_FLAGS_PRESSED_ON_DOUBLE_CLICK = 1 << 5,
+	GALGUI_BUTTON_FLAGS_PRESSED_ON_DRAG_DROP_HOLD = 1 << 6,
+	GALGUI_BUTTON_FLAGS_FLATTEN_CHILDREN = 1 << 7,
+	GALGUI_BUTTON_FLAGS_ALLOW_ITEM_OVERLAP = 1 << 8,
+	GALGUI_BUTTON_FLAGS_DO_NOT_CLOSE_POPUPS = 1 << 9,
+	GALGUI_BUTTON_FLAGS_DISABLE = 1 << 10,
+	GALGUI_BUTTON_FLAGS_ALIGN_TEXT_BASE_LINE = 1 << 11,
+	GALGUI_BUTTON_FLAGS_NO_KEY_MODIFIERS = 1 << 12,
+	GALGUI_BUTTON_FLAGS_NO_HOLDING_ACTIVE_ID = 1 << 13,
+	GALGUI_BUTTON_FLAGS_NO_NAV_FOCUS = 1 << 14,
+	GALGUI_BUTTON_FLAGS_NO_HOVERED_ON_FOCUS = 1 << 15,
+	GALGUI_BUTTON_FLAGS_MOUSE_BUTTON_LEFT = 1 << 16,
+	GALGUI_BUTTON_FLAGS_MOUSE_BUTTON_RIGHT = 1 << 17,
+	GALGUI_BUTTON_FLAGS_MOUSE_BUTTON_MIDDLE = 1 << 18,
+
+	GALGUI_BUTTON_FLAGS_MOUSE_BUTTON_MASK =
+		GALGUI_BUTTON_FLAGS_MOUSE_BUTTON_LEFT |
+		GALGUI_BUTTON_FLAGS_MOUSE_BUTTON_RIGHT |
+		GALGUI_BUTTON_FLAGS_MOUSE_BUTTON_MIDDLE,
+	GALGUI_BUTTON_FLAGS_MOUSE_BUTTON_SHIFT = 1 << 4,
+	GALGUI_BUTTON_FLAGS_DEFAULT = GALGUI_BUTTON_FLAGS_MOUSE_BUTTON_LEFT,
+	GALGUI_BUTTON_FLAGS_PRESSED_ON_MASK =
+		GALGUI_BUTTON_FLAGS_PRESSED_ON_CLICK |
+		GALGUI_BUTTON_FLAGS_PRESSED_ON_CLICK_RELEASE |
+		GALGUI_BUTTON_FLAGS_PRESSED_ON_CLICK_RELEASE_ANY_WHERE |
+		GALGUI_BUTTON_FLAGS_PRESSED_ON_RELEASE |
+		GALGUI_BUTTON_FLAGS_PRESSED_ON_DOUBLE_CLICK |
+		GALGUI_BUTTON_FLAGS_PRESSED_ON_DRAG_DROP_HOLD,
+	GALGUI_BUTTON_FLAGS_PRESSED_ON_DEFAULT = GALGUI_BUTTON_FLAGS_PRESSED_ON_CLICK_RELEASE
+};
+
 using GalGuiColumnsFlags = int;
+enum class EnumGalGuiColumnsFlags : GalGuiColumnsFlags
+{
+	GALGUI_COLUMNS_FLAGS_NONE = 0,
+	GALGUI_COLUMNS_FLAGS_NO_BORDER = 1 << 0,
+	GALGUI_COLUMNS_FLAGS_NO_RESIZE = 1 << 1,
+	GALGUI_COLUMNS_FLAGS_NO_PRESERVE_WIDTHS = 1 << 2,
+	GALGUI_COLUMNS_FLAGS_NO_FORCE_WITHIN_WINDOW = 1 << 3,
+	GALGUI_COLUMNS_FLAGS_GROW_PARENT_CONTENT_SIZE = 1 << 4
+};
+
 using GalGuiDragFlags = int;
+enum class EnumGalGuiDragFlags : GalGuiDragFlags
+{
+	GALGUI_DRAG_FLAGS_NONE = 0,
+	GALGUI_DRAG_FLAGS_VERTICAL = 1 << 0
+};
+
 using GalGuiItemFlags = int;
+// Transient per-window flags, reset at the beginning of the frame. For child window, inherited from parent on first Begin().
+enum class EnumGalGuiItemFlags : GalGuiItemFlags
+{
+	GALGUI_ITEM_FLAGS_NONE = 0,
+	GALGUI_ITEM_FLAGS_NO_TAB_STOP = 1 << 0,
+	GALGUI_ITEM_FLAGS_BUTTON_REPEAT = 1 << 1,
+	GALGUI_ITEM_FLAGS_DISABLE = 1 << 2,
+	GALGUI_ITEM_FLAGS_NO_NAV = 1 << 3,
+	GALGUI_ITEM_FLAGS_NO_NAV_DEFAULT_FOCUS = 1 << 4,
+	GALGUI_ITEM_FLAGS_SELECTABLE_DO_NOT_CLOSE_POPUP = 1 << 5,
+	GALGUI_ITEM_FLAGS_MIXED_VALUE = 1 << 6,
+	GALGUI_ITEM_FLAGS_READONLY = 1 << 7,
+	GALGUI_ITEM_FLAGS_DEFAULT = 0
+};
+
 using GalGuiItemStatusFlags = int;
+// Storage for LastItem data
+enum class EnumGalGuiItemStatusFlags : GalGuiItemStatusFlags
+{
+	GALGUI_ITEM_STATUS_FLAGS_NONE = 0,
+	GALGUI_ITEM_STATUS_FLAGS_HOVERED_RECT = 1 << 0,
+	GALGUI_ITEM_STATUS_FLAGS_HAS_DISPLAY_RECT = 1 << 1,
+	GALGUI_ITEM_STATUS_FLAGS_EDITED = 1 << 2,
+	GALGUI_ITEM_STATUS_FLAGS_TOGGLED_SELECTION = 1 << 3,
+	GALGUI_ITEM_STATUS_FLAGS_TOGGLED_OPEN = 1 << 4,
+	GALGUI_ITEM_STATUS_FLAGS_HAS_DEACTIVATED = 1 << 5,
+	GALGUI_ITEM_STATUS_FLAGS_DEACTIVATED = 1 << 6
+};
+
 using GalGuiNavHighlightFlags = int;
+enum class EnumGalGuiNavHighlightFlags : GalGuiNavHighlightFlags
+{
+	GALGUI_NAV_HIGHLIGHT_FLAGS_NONE = 0,
+	GALGUI_NAV_HIGHLIGHT_FLAGS_TYPE_DEFAULT = 1 << 0,
+	GALGUI_NAV_HIGHLIGHT_FLAGS_TYPE_THIN = 1 << 1,
+	GALGUI_NAV_HIGHLIGHT_FLAGS_ALWAYS_DRAW = 1 << 2,
+	GALGUI_NAV_HIGHLIGHT_FLAGS_NO_ROUNDING = 1 << 3
+};
+
 using GalGuiNavDirSourceFlags = int;
+enum class EnumGalGuiNavDirSourceFlags : GalGuiNavDirSourceFlags
+{
+	GALGUI_NAV_DIR_SOURCE_FLAGS_NONE = 0,
+	GALGUI_NAV_DIR_SOURCE_FLAGS_KEYBOARD = 1 << 0,
+	GALGUI_NAV_DIR_SOURCE_FLAGS_PAD_DPAD = 1 << 1,
+	GALGUI_NAV_DIR_SOURCE_FLAGS_PAD_LSTICK = 1 << 2
+};
+
 using GalGuiNavMoveFlags = int;
+enum class EnumGalGuiNavMoveFlags : GalGuiNavMoveFlags
+{
+	GALGUI_NAV_MOVE_FLAGS_NONE = 0,
+	GALGUI_NAV_MOVE_FLAGS_LOOP_X = 1 << 0,
+	GALGUI_NAV_MOVE_FLAGS_LOOP_Y = 1 << 1,
+	GALGUI_NAV_MOVE_FLAGS_WARP_X = 1 << 2,
+	GALGUI_NAV_MOVE_FLAGS_WARP_Y = 1 << 3,
+	GALGUI_NAV_MOVE_FLAGS_ALLOW_CURRENT_NAV_ID = 1 << 4,
+	GALGUI_NAV_MOVE_FLAGS_ALSO_SCORE_VISIBLE_SET = 1 << 5,
+	GALGUI_NAV_MOVE_FLAGS_SCROLL_TO_EDGE = 1 << 6
+};
+
 using GalGuiNextItemDataFlags = int;
+enum class EnumGalGuiNextItemDataFlags : GalGuiNextItemDataFlags
+{
+	GALGUI_NEXT_ITEM_DATA_FLAGS_NONE = 0,
+	GALGUI_NEXT_ITEM_DATA_FLAGS_HAS_WIDTH = 1 << 0,
+	GALGUI_NEXT_ITEM_DATA_FLAGS_HAS_OPEN = 1 << 1
+};
+
 using GalGuiNextWindowDataFlags = int;
+enum class EnumGalGuiNextWindowDataFlags : GalGuiNextWindowDataFlags
+{
+	GALGUI_NEXT_WINDOW_DATA_FLAGS_NONE = 0,
+	GALGUI_NEXT_WINDOW_DATA_FLAGS_HAS_POS = 1 << 0,
+	GALGUI_NEXT_WINDOW_DATA_FLAGS_HAS_SIZE = 1 << 1,
+	GALGUI_NEXT_WINDOW_DATA_FLAGS_HAS_CONTENT_SIZE = 1 << 2,
+	GALGUI_NEXT_WINDOW_DATA_FLAGS_HAS_COLLAPSED = 1 << 3,
+	GALGUI_NEXT_WINDOW_DATA_FLAGS_HAS_SIZE_CONSTRAINT = 1 << 4,
+	GALGUI_NEXT_WINDOW_DATA_FLAGS_HAS_FOCUS = 1 << 5,
+	GALGUI_NEXT_WINDOW_DATA_FLAGS_HAS_BACKGROUND_ALPHA = 1 << 6,
+	GALGUI_NEXT_WINDOW_DATA_FLAGS_HAS_SCROLL = 1 << 7
+};
+
 using GalGuiSeparatorFlags = int;
+enum class EnumGalGuiSeparatorFlags : GalGuiSeparatorFlags
+{
+	GALGUI_SEPARATOR_FLAGS_NONE = 0,
+	GALGUI_SEPARATOR_FLAGS_HORIZONTAL = 1 << 0,
+	GALGUI_SEPARATOR_FLAGS_VERTICAL = 1 << 1,
+	GALGUI_SEPARATOR_FLAGS_SPAN_ALL_COLUMNS = 1 << 2
+};
+
 using GalGuiSliderFlags = int;
+enum class EnumGalGuiSliderFlags : GalGuiSliderFlags
+{
+	GALGUI_SLIDER_FLAGS_NONE = 0,
+	GALGUI_SLIDER_FLAGS_VERTICAL = 1 << 0
+};
+
 using GalGuiTextFlags = int;
+enum class EnumGalGuiTextFlags : GalGuiTextFlags
+{
+	GALGUI_TEXT_FLAGS_NONE = 0,
+	GALGUI_TEXT_FLAGS_NO_WIDTH_FOR_LARGE_CLIPPED_TEXT = 1 << 0
+};
+
 using GalGuiTooltipFlags = int;
+enum class EnumGalGuiTooltipFlags : GalGuiTooltipFlags
+{
+	GALGUI_TOOLTIP_FLAGS_NONE = 0,
+	GALGUI_TOOLTIP_FLAGS_OVERRIDE_PREVIOUS_TOOLTIP = 1 << 0
+};
 
+enum class EnumGalGuiLogType
+{
+	GALGUI_LOG_TYPE_NONE = 0,
+	GALGUI_LOG_TYPE_TTY,
+	GALGUI_LOG_TYPE_FILE,
+	GALGUI_LOG_TYPE_BUFFER,
+	GALGUI_LOG_TYPE_CLIPBOARD
+};
 
+// X/Y enums are fixed to 0/1 so they may be used to index ImVec2
+enum class EnumGalGuiAxis
+{
+	GALGUI_AXIS_NONE = -1,
+	GALGUI_AXIS_X = 0,
+	GALGUI_AXIS_Y = 1
+};
+
+enum class EnumGalGuiPlotType
+{
+	GALGUI_PLOT_TYPE_LINE,
+	GALGUI_PLOT_TYPE_HISTOGRAM
+};
+
+enum class EnumGalGuiInputSource
+{
+	GALGUI_INPUT_SOURCE_NONE = 0,
+	GALGUI_INPUT_SOURCE_MOUSE,
+	GALGUI_INPUT_SOURCE_NAV,
+	GALGUI_INPUT_SOURCE_NAV_KEYBOARD,
+	GALGUI_INPUT_SOURCE_NV_GAMEPAD,
+	GALGUI_INPUT_SOURCE_COUNT
+};
+
+enum class EnumGalGuiInputReadMode
+{
+	GALGUI_INPUT_READ_MODE_DOWN,
+	GALGUI_INPUT_READ_MODE_PRESSED,
+	GALGUI_INPUT_READ_MODE_RELEASED,
+	GALGUI_INPUT_READ_MODE_REPEAT,
+	GALGUI_INPUT_READ_MODE_REPEAT_SLOW,
+	GALGUI_INPUT_READ_MODE_REPEAT_FAST
+};
+
+enum class EnumGalGuiNavForward
+{
+	GALGUI_NAV_FORWARD_NONE,
+	GALGUI_NAV_FORWARD_FORWARD_QUEUED,
+	GALGUI_NAV_FORWARD_FORWARD_ACTIVE
+};
+
+enum class EnumGalGuiNavLayer
+{
+	GALGUI_NAV_LAYER_MAIN = 0,
+	GALGUI_NAV_LAYER_MENU = 1,
+	GALGUI_NAV_LAYER_COUNT
+};
+
+enum class EnumGalGuiPopupPositionPolicy
+{
+	GALGUI_POPUP_POSITION_POLICY_DEFAULT,
+	GALGUI_POPUP_POSITION_POLICY_COMBOBOX
+};
 
 // 字符解码
 using GalWChar16 = unsigned short;
