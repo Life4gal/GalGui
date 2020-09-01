@@ -1,37 +1,11 @@
 #pragma once
 
 #include <algorithm>
-
 #include <cassert>
 #include <cfloat>
 #include <cstdarg>
 #include <cstddef>
 #include <cstring>
-
-struct GalBitVector;                 // Store 1-bit per value
-struct GalRect;                      // An axis-aligned rectangle (2 points)
-struct GalDrawDataBuilder;           // Helper to build a ImDrawData instance
-struct GalDrawListSharedData;        // Data shared between all ImDrawList instances
-struct GalGuiColorMod;               // Stacked color modifier, backup of modified data so we can restore it
-struct GalGuiColumnData;             // Storage data for a single column
-struct GalGuiColumns;                // Storage data for a columns set
-struct GalGuiContext;                // Main Dear ImGui context
-struct GalGuiDataTypeInfo;           // Type information associated to a ImGuiDataType enum
-struct GalGuiGroupData;              // Stacked storage data for BeginGroup()/EndGroup()
-struct GalGuiInputTextState;         // Internal state of the currently focused/edited text input box
-struct GalGuiItemHoveredDataBackup;  // Backup and restore IsItemHovered() internal data
-struct GalGuiMenuColumns;            // Simple column measurement, currently used for MenuItem() only
-struct GalGuiNavMoveResult;          // Result of a gamepad/keyboard directional navigation move query result
-struct GalGuiNextWindowData;         // Storage for SetNextWindow** functions
-struct GalGuiNextItemData;           // Storage for SetNextItem** functions
-struct GalGuiPopupData;              // Storage for current popup stack
-struct GalGuiSettingsHandler;        // Storage for one type registered in the .ini file
-struct GalGuiStyleMod;               // Stacked style modifier, backup of modified data so we can restore it
-struct GalGuiTabBar;                 // Storage for a tab bar
-struct GalGuiTabItem;                // Storage for a tab item (within a tab bar)
-struct GalGuiWindow;                 // Storage for one window
-struct GalGuiWindowTempData;         // Temporary storage for one window (that's the data which in theory we could ditch at the end of the frame)
-struct GalGuiWindowSettings;         // Storage for a window .ini settings (we keep one of those even if the actual window wasn't instanced during this session)
 
 using GalGuiCol = int; 
 // Enum: A color identifier for styling
@@ -1505,7 +1479,7 @@ constexpr int GalTextCharFromUtf8(unsigned int* out, const unsigned char* text, 
 }
 
 constexpr int GalTextStrFromUtf8(
-	GalWChar* dest, size_t length, 
+	GalWChar* dest, const size_t length, 
 	const char* text, const char* textEnd, 
 	const char** textRemaining)
 {
@@ -1580,6 +1554,40 @@ constexpr int GalTextCountUtf88BytesFromStr(const GalWChar* text, const GalWChar
 	
 	return count;
 }
+
+struct GalVec2;
+struct GalVec2Half;
+struct GalVec4;
+struct GalRect;
+
+
+struct GalGuiStorage;
+
+
+struct GalBitVector;                 // Store 1-bit per value
+struct GalRect;                      // An axis-aligned rectangle (2 points)
+struct GalDrawDataBuilder;           // Helper to build a ImDrawData instance
+struct GalDrawListSharedData;        // Data shared between all ImDrawList instances
+struct GalGuiColorMod;               // Stacked color modifier, backup of modified data so we can restore it
+struct GalGuiColumnData;             // Storage data for a single column
+struct GalGuiColumns;                // Storage data for a columns set
+struct GalGuiContext;                // Main Dear ImGui context
+struct GalGuiDataTypeInfo;           // Type information associated to a ImGuiDataType enum
+struct GalGuiGroupData;              // Stacked storage data for BeginGroup()/EndGroup()
+struct GalGuiInputTextState;         // Internal state of the currently focused/edited text input box
+struct GalGuiItemHoveredDataBackup;  // Backup and restore IsItemHovered() internal data
+struct GalGuiMenuColumns;            // Simple column measurement, currently used for MenuItem() only
+struct GalGuiNavMoveResult;          // Result of a gamepad/keyboard directional navigation move query result
+struct GalGuiNextWindowData;         // Storage for SetNextWindow** functions
+struct GalGuiNextItemData;           // Storage for SetNextItem** functions
+struct GalGuiPopupData;              // Storage for current popup stack
+struct GalGuiSettingsHandler;        // Storage for one type registered in the .ini file
+struct GalGuiStyleMod;               // Stacked style modifier, backup of modified data so we can restore it
+struct GalGuiTabBar;                 // Storage for a tab bar
+struct GalGuiTabItem;                // Storage for a tab item (within a tab bar)
+struct GalGuiWindow;                 // Storage for one window
+struct GalGuiWindowTempData;         // Temporary storage for one window (that's the data which in theory we could ditch at the end of the frame)
+struct GalGuiWindowSettings;         // Storage for a window .ini settings (we keep one of those even if the actual window wasn't instanced during this session)
 
 /* =====================================================
  *		GalVec2 & GalVec2Half & GalVec4 & GalRect
@@ -2060,10 +2068,21 @@ constexpr float GalTriangleArea(const GalVec2& a, const GalVec2& b, const GalVec
 
 constexpr GalGuiDir GalGetDirQuadrantFromDelta(float dx, float dy)
 {
-	if(std::abs(dx) > std::abs(dy))
+	auto x = true;
+	auto y = true;
+	dx = dx > 0.0f ? dx : (x = false, -dx);
+	dy = dy > 0.0f ? dy : (y = false, -dy);
+	if(dx > dy)
 	{
-		return dx > 0.0f > : Enum
+		return x ?
+			static_cast<GalGuiDir>(EnumGalGuiDir::GALGUI_DIR_RIGHT)
+			:
+			static_cast<GalGuiDir>(EnumGalGuiDir::GALGUI_DIR_LEFT);
 	}
+	return y ?
+		static_cast<GalGuiDir>(EnumGalGuiDir::GALGUI_DIR_DOWN)
+		:
+		static_cast<GalGuiDir>(EnumGalGuiDir::GALGUI_DIR_UP);
 }
 
 struct GalRect
@@ -2242,25 +2261,25 @@ struct GalRect
 };
 
 /* =====================================================
- *		GalVector & GalBitVector
- *		GalVector & GalBitVector
- *		GalVector & GalBitVector
- *		GalVector & GalBitVector
- *		GalVector & GalBitVector
- *		GalVector & GalBitVector
- *		GalVector & GalBitVector
- *		GalVector & GalBitVector
- *		GalVector & GalBitVector
- *		GalVector & GalBitVector
- *		GalVector & GalBitVector
- *		GalVector & GalBitVector
- *		GalVector & GalBitVector
- *		GalVector & GalBitVector
- *		GalVector & GalBitVector
- *		GalVector & GalBitVector
- *		GalVector & GalBitVector
- *		GalVector & GalBitVector
- *		GalVector & GalBitVector
+ *						GalVector 
+ *						GalVector 
+ *						GalVector 
+ *						GalVector 
+ *						GalVector 
+ *						GalVector 
+ *						GalVector 
+ *						GalVector 
+ *						GalVector 
+ *						GalVector 
+ *						GalVector 
+ *						GalVector 
+ *						GalVector 
+ *						GalVector 
+ *						GalVector 
+ *						GalVector 
+ *						GalVector 
+ *						GalVector 
+ *						GalVector 
  * ======================================================
  */
 
@@ -2271,16 +2290,16 @@ struct GalVector
 	size_t capacity;
 	T* data;
 
-	GalVector() : size(0), capacity(0), data(nullptr) {}
+	constexpr GalVector() : size(0), capacity(0), data(nullptr) {}
 	
 	GalVector(const GalVector<T>& src) : size(0), capacity(0), data(nullptr)
 	{
 		this->operator=(src);
 	}
 
-	GalVector<T>& operator=(const GalVector<T>& src)
+	GalVector& operator=(const GalVector& src)  // NOLINT(bugprone-unhandled-self-assignment, cert-oop54-cpp)
 	{
-		if(data == src.data && size == src.size && capacity == src.capacity)
+		if(&src == this)
 		{
 			return *this;
 		}
@@ -2291,9 +2310,18 @@ struct GalVector
 		return *this;
 	}
 
-	GalVector(GalVector&& other) noexcept = default;
-	GalVector& operator=(GalVector&& other) noexcept = default;
+	GalVector(GalVector&& other) noexcept = delete;
+	GalVector& operator=(GalVector&& other) noexcept = delete;
 
+	// ReSharper disable once CppInconsistentNaming
+	constexpr void swap(GalVector<T>& rhs) noexcept
+	{
+		using std::swap;
+		swap(size, rhs.size);
+		swap(capacity, rhs.capacity);
+		swap(data, rhs.data);
+	}
+	
 	~GalVector()
 	{
 		if(data)
@@ -2389,15 +2417,7 @@ struct GalVector
 		return data[size - 1];
 	}
 
-	constexpr void Swap(GalVector<T>& rhs)
-	{
-		using std::swap;
-		swap(size, rhs.size);
-		swap(capacity, rhs.capacity);
-		swap(data, rhs.data);
-	}
-
-	constexpr void Reserve(size_t newCapacity)
+	constexpr void Reserve(const size_t newCapacity)
 	{
 		if (newCapacity <= capacity) return;
 		auto newData = GalGui::Alloc(newCapacity * sizeof(T));
@@ -2596,6 +2616,28 @@ constexpr void GalBitArrayBitRange(GalU32* arr, int n, const int n2)
 	}
 }
 
+/* =====================================================
+ *						GalBitVec
+ *						GalBitVec
+ *						GalBitVec
+ *						GalBitVec
+ *						GalBitVec
+ *						GalBitVec
+ *						GalBitVec
+ *						GalBitVec
+ *						GalBitVec
+ *						GalBitVec
+ *						GalBitVec
+ *						GalBitVec
+ *						GalBitVec
+ *						GalBitVec
+ *						GalBitVec
+ *						GalBitVec
+ *						GalBitVec
+ *						GalBitVec
+ *						GalBitVec
+ * ======================================================
+ */
 struct GalBitVec
 {
 	GalVector<GalU32> storage;
@@ -2629,6 +2671,289 @@ struct GalBitVec
 		GalBitArrayClearBit(storage.data, n);
 	}
 };
+
+/* =====================================================
+ *						GalPool
+ *						GalPool
+ *						GalPool
+ *						GalPool
+ *						GalPool
+ *						GalPool
+ *						GalPool
+ *						GalPool
+ *						GalPool
+ *						GalPool
+ *						GalPool
+ *						GalPool
+ *						GalPool
+ *						GalPool
+ *						GalPool
+ *						GalPool
+ *						GalPool
+ *						GalPool
+ *						GalPool
+ * ======================================================
+ */
+using GalPoolIndex = int;
+template <typename T>
+struct GalPool
+{
+	GalVector<T> buffer;
+	GalGuiStorage map;
+	GalPoolIndex freeIndex;
+
+
+	
+};
+
+
+
+
+
+
+
+
+
+
+/* =====================================================
+ *						GalGuiStorage
+ *						GalGuiStorage
+ *						GalGuiStorage
+ *						GalGuiStorage
+ *						GalGuiStorage
+ *						GalGuiStorage
+ *						GalGuiStorage
+ *						GalGuiStorage
+ *						GalGuiStorage
+ *						GalGuiStorage
+ *						GalGuiStorage
+ *						GalGuiStorage
+ *						GalGuiStorage
+ *						GalGuiStorage
+ *						GalGuiStorage
+ *						GalGuiStorage
+ *						GalGuiStorage
+ *						GalGuiStorage
+ *						GalGuiStorage
+ * ======================================================
+ */
+
+struct GalGuiStorage
+{
+	// [Internal]
+	struct GalGuiStoragePair
+	{
+		GalGuiID key;
+		union
+		{
+			int iVal;
+			float fVal;
+			void* pVal;
+		};
+
+		constexpr GalGuiStoragePair(const GalGuiID key, const int val) : key(key), iVal(val) {}  // NOLINT(cppcoreguidelines-pro-type-member-init, hicpp-member-init)
+		constexpr GalGuiStoragePair(const GalGuiID key, const float val) : key(key), fVal(val) {}	// NOLINT(cppcoreguidelines-pro-type-member-init, hicpp-member-init)
+		constexpr GalGuiStoragePair(const GalGuiID key, void* val) : key(key), pVal(val) {}	// NOLINT(cppcoreguidelines-pro-type-member-init, hicpp-member-init)
+	};
+
+	GalVector<GalGuiStoragePair> data;
+
+	constexpr void Clear()
+	{
+		data.Clear();
+	}
+
+	constexpr int GetInt(GalGuiID key, int defaultVal = 0) const;
+	constexpr void SetInt(GalGuiID key, int val);
+	constexpr bool GetBool(GalGuiID key, bool defaultVal = false) const;
+	constexpr void SetBool(GalGuiID key, bool val);
+	constexpr float GetFloat(GalGuiID key, float defaultVal = 0.0f) const;
+	constexpr void SetFloat(GalGuiID key, float val);
+	constexpr void* GetPtr(GalGuiID key) const;
+	constexpr void SetPtr(GalGuiID key, void* val);
+
+	constexpr int* GetIntRef(GalGuiID key, int defaultVal = 0);
+	constexpr bool* GetBoolRef(GalGuiID key, bool defaultVal = false);
+	constexpr float* GetFloatRef(GalGuiID key, float defaultVal = 0.0f);
+	constexpr void** GetPtrRef(GalGuiID key, void* defaultVal = nullptr);
+
+	constexpr void SetAllInt(const int val)
+	{
+		for(int i = 0; i < data.Size(); ++i)
+		{
+			data[i].iVal = val;
+		}
+	}
+
+	constexpr void BuildSortByKey() const
+	{
+		if(data.size > 1)
+		{
+			qsort(data.data, data.Size(), sizeof(GalGuiStoragePair),
+				[](const void* lhs, const void* rhs) -> int
+				{
+					if (static_cast<const GalGuiStoragePair*>(lhs)->key > static_cast<const GalGuiStoragePair*>(rhs)->key)
+					{
+						return 1;
+					}
+					if (static_cast<const GalGuiStoragePair*>(lhs)->key < static_cast<const GalGuiStoragePair*>(rhs)->key)
+					{
+						return -1;
+					}
+					return 0;
+				}
+			);
+		}
+	}
+};
+
+static constexpr GalGuiStorage::GalGuiStoragePair* LowerBound(GalVector<GalGuiStorage::GalGuiStoragePair>& data, const GalGuiID key)
+{
+	auto first = data.Begin();
+	auto count = data.Size();
+
+	while(count > 0)
+	{
+		const auto count2 = count >> 2;
+		auto mid = first + count2;
+		if(mid->key < key)
+		{
+			first = ++mid;
+			count -= count2 + 1;
+		}
+		else
+		{
+			count = count2;
+		}
+	}
+	return first;
+}
+
+constexpr int GalGuiStorage::GetInt(const GalGuiID key, const int defaultVal) const
+{
+	// 虽然不会改变data,但是要用到的函数不能返回常指针,其他地方会有修改其值的情况,所以用了个const_cast转型
+	const auto it = LowerBound(const_cast<GalVector<GalGuiStoragePair>&>(data), key);
+	if (it == data.End() || it->key != key)
+	{
+		return defaultVal;
+	}
+	return it->iVal;
+}
+
+constexpr void GalGuiStorage::SetInt(const GalGuiID key, const int val)
+{
+	const auto it = LowerBound(data, key);
+	if(it == data.End() || it->key != key)
+	{
+		data.Insert(it, { key, val });
+		return;
+	}
+	it->iVal = val;
+}
+
+constexpr bool GalGuiStorage::GetBool(const GalGuiID key, const bool defaultVal) const
+{
+	return this->GetInt(key, defaultVal ? 1 : 0) != 0;
+}
+
+constexpr void GalGuiStorage::SetBool(const GalGuiID key, const bool val)
+{
+	this->SetInt(key, val ? 1 : 0);
+}
+
+constexpr float GalGuiStorage::GetFloat(const GalGuiID key, const float defaultVal) const
+{
+	const auto it = LowerBound(const_cast<GalVector<GalGuiStoragePair>&>(data), key);
+	if (it == data.End() || it->key != key)
+	{
+		return defaultVal;
+	}
+	return it->fVal;
+}
+
+constexpr void GalGuiStorage::SetFloat(const GalGuiID key, const float val)
+{
+	const auto it = LowerBound(const_cast<GalVector<GalGuiStoragePair>&>(data), key);
+	if (it == data.End() || it->key != key)
+	{
+		data.Insert(it, { key, val });
+		return;
+	}
+	it->fVal = val;
+}
+
+constexpr void* GalGuiStorage::GetPtr(const GalGuiID key) const
+{
+	const auto it = LowerBound(const_cast<GalVector<GalGuiStoragePair>&>(data), key);
+	if(it == data.End() || it->key != key)
+	{
+		return nullptr;
+	}
+	return it->pVal;
+}
+
+constexpr void GalGuiStorage::SetPtr(const GalGuiID key, void* val)
+{
+	const auto it = LowerBound(const_cast<GalVector<GalGuiStoragePair>&>(data), key);
+	if (it == data.End() || it->key != key)
+	{
+		data.Insert(it, { key, val });
+		return;
+	}
+	it->pVal = val;
+}
+
+constexpr int* GalGuiStorage::GetIntRef(const GalGuiID key, const int defaultVal)
+{
+	auto it = LowerBound(data, key);
+	if(it == data.End() || it->key != key)
+	{
+		it = data.Insert(it, { key, defaultVal });
+	}
+	return &it->iVal;
+}
+
+constexpr bool* GalGuiStorage::GetBoolRef(const GalGuiID key, const bool defaultVal)
+{
+	return reinterpret_cast<bool*>(GetIntRef(key, defaultVal ? 1 : 0));
+}
+
+constexpr float* GalGuiStorage::GetFloatRef(const GalGuiID key, const float defaultVal)
+{
+	auto it = LowerBound(data, key);
+	if(it == data.End() || it->key != key)
+	{
+		it = data.Insert(it, { key, defaultVal });
+	}
+	return &it->fVal;
+}
+
+constexpr void** GalGuiStorage::GetPtrRef(const GalGuiID key, void* defaultVal)
+{
+	auto it = LowerBound(data, key);
+	if (it == data.End() || it->key != key)
+	{
+		it = data.Insert(it, { key, defaultVal });
+	}
+	return &it->pVal;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
