@@ -1,6 +1,9 @@
 #pragma once
 
 #include <algorithm>
+#include <any>
+#include <variant>
+
 #include <cassert>
 #include <cfloat>
 #include <cstdarg>
@@ -1560,7 +1563,7 @@ struct GalVec2Half;
 struct GalVec4;
 struct GalRect;
 
-
+// template <typename PtrType>
 struct GalGuiStorage;
 
 
@@ -1775,6 +1778,16 @@ static constexpr GalVec2& operator/=(GalVec2& lhs, const GalVec2& rhs)
 	lhs.x /= rhs.x;
 	lhs.y /= rhs.x;
 	return lhs;
+}
+
+static constexpr GalVec2 GalVec2Min(const GalVec2& lhs, const GalVec2& rhs)
+{
+	return { lhs.x < rhs.x ? lhs.x : rhs.x, lhs.y < rhs.y ? lhs.y : rhs.y };
+}
+
+static constexpr GalVec2 GalVec2Max(const GalVec2& lhs, const GalVec2& rhs)
+{
+	return { lhs.x >= rhs.x ? lhs.x : rhs.x, lhs.y >= rhs.y ? lhs.y : rhs.y };
 }
 
 static constexpr GalVec4 operator+(const GalVec4& lhs, const GalVec4& rhs)
@@ -2237,8 +2250,8 @@ struct GalRect
 	// Simple version, may lead to an inverted rectangle, which is fine for Contains/Overlaps test but not for display.
 	constexpr void ClipWith(const GalRect& rect)
 	{
-		min = std::max(min, rect.min);
-		max = std::min(max, rect.max);
+		min = GalVec2Max(min, rect.min);
+		max = GalVec2Min(max, rect.max);
 	}
 
 	// Full version, ensure both points are fully clipped.
@@ -2702,7 +2715,7 @@ struct GalPool
 	GalGuiStorage map;
 	GalPoolIndex freeIndex;
 
-
+	
 	
 };
 
@@ -2737,23 +2750,22 @@ struct GalPool
  *						GalGuiStorage
  * ======================================================
  */
-
+// template <typename PtrType>
+// TODO 这里应该可以使用模版,但是有很多问题
+// TODO 可以用参数包而不是写死的 int, float, PtrType 作为类型,但是我们缺少类型检查的手段
+// TODO 注意: 如果修改了 std::variant<int, float, void*> val 的类型,那么下面的函数也要修改,因为他们不得不写死
 struct GalGuiStorage
 {
 	// [Internal]
 	struct GalGuiStoragePair
 	{
 		GalGuiID key;
-		union
-		{
-			int iVal;
-			float fVal;
-			void* pVal;
-		};
+		
+		std::variant<int, float, void*> val;
 
-		constexpr GalGuiStoragePair(const GalGuiID key, const int val) : key(key), iVal(val) {}  // NOLINT(cppcoreguidelines-pro-type-member-init, hicpp-member-init)
-		constexpr GalGuiStoragePair(const GalGuiID key, const float val) : key(key), fVal(val) {}	// NOLINT(cppcoreguidelines-pro-type-member-init, hicpp-member-init)
-		constexpr GalGuiStoragePair(const GalGuiID key, void* val) : key(key), pVal(val) {}	// NOLINT(cppcoreguidelines-pro-type-member-init, hicpp-member-init)
+		constexpr GalGuiStoragePair(const GalGuiID key, const int val) : key(key), val(val) {  }
+		constexpr GalGuiStoragePair(const GalGuiID key, const float val) : key(key), val(val) {}
+		constexpr GalGuiStoragePair(const GalGuiID key, void* val) : key(key), val(val) {}
 	};
 
 	GalVector<GalGuiStoragePair> data;
@@ -2763,25 +2775,167 @@ struct GalGuiStorage
 		data.Clear();
 	}
 
-	constexpr int GetInt(GalGuiID key, int defaultVal = 0) const;
-	constexpr void SetInt(GalGuiID key, int val);
-	constexpr bool GetBool(GalGuiID key, bool defaultVal = false) const;
-	constexpr void SetBool(GalGuiID key, bool val);
-	constexpr float GetFloat(GalGuiID key, float defaultVal = 0.0f) const;
-	constexpr void SetFloat(GalGuiID key, float val);
-	constexpr void* GetPtr(GalGuiID key) const;
-	constexpr void SetPtr(GalGuiID key, void* val);
+	// 将其作为静态的主要原因是我们的 Getter 需要 const 限定符,而这个函数不能加 const 限定符(因为 setter 会通过这个函数的返回值修改数据)
+	static constexpr GalGuiStoragePair* LowerBound(GalVector<GalGuiStoragePair>& data, const GalGuiID key)
+	{
+		auto first = data.Begin();
+		auto count = data.Size();
 
-	constexpr int* GetIntRef(GalGuiID key, int defaultVal = 0);
-	constexpr bool* GetBoolRef(GalGuiID key, bool defaultVal = false);
-	constexpr float* GetFloatRef(GalGuiID key, float defaultVal = 0.0f);
-	constexpr void** GetPtrRef(GalGuiID key, void* defaultVal = nullptr);
+		while (count > 0)
+		{
+			const auto count2 = count >> 2;
+			auto mid = first + count2;
+			if (mid->key < key)
+			{
+				first = ++mid;
+				count -= count2 + 1;
+			}
+			else
+			{
+				count = count2;
+			}
+		}
+		return first;
+	}
 
+	template <typename T>
+	constexpr T Get(const GalGuiID key, const T defaultVal = T{})
+	{
+		if(std::is_same_v<T, bool>)
+		{
+			// 由于我们的容器储存的元素类型相同,所以我们可以对任意一个元素进行断言
+			// 在可以要求其转为 int 的情况下才能使用 bool
+			// TODO 也许应该换个方式
+			GalAssert(std::get_if<int>(&data[0].val) != nullptr);
+			
+			return static_cast<bool>(this->Get<int>(key, defaultVal ? 1 : 0));
+		}
+		
+		// 虽然不会改变data,但是要用到的函数不能返回常指针,其他地方会有修改其值的情况,所以用了个const_cast转型
+		const auto it = this->LowerBound(const_cast<GalVector<GalGuiStoragePair>&>(data), key);
+		if (it == data.End() || it->key != key)
+		{
+			return defaultVal;
+		}
+
+		struct Output
+		{
+			constexpr int operator()(const int v) const
+			{
+				return v;
+			}
+			constexpr float operator()(const float v) const
+			{
+				return v;
+			}
+			constexpr void* operator()(void* v) const
+			{
+				return v;
+			}
+			void operator()(const std::any&) const
+			{
+				// 不支持的类型抛出异常
+				throw std::bad_any_cast();
+			}
+		};
+
+		return std::visit(Output(), it->val);
+	}
+
+	template <typename T>
+	constexpr void Set(const GalGuiID key, T val)
+	{
+		if(std::is_same_v<T, bool>)
+		{
+			// 由于我们的容器储存的元素类型相同,所以我们可以对任意一个元素进行断言
+			// 在可以要求其转为 int 的情况下才能使用 bool
+			// TODO 也许应该换个方式
+			GalAssert(std::get_if<int>(&data[0].val) != nullptr);
+
+			return this->Set<int>(key, val ? 1 : 0);
+		}
+		
+		const auto it = this->LowerBound(data, key);
+		if (it == data.End() || it->key != key)
+		{
+			data.Insert(it, { key, val });
+			return;
+		}
+
+		// TODO 在设置的时候,如果目标的类型与我们的不一致,是算错误呢还是覆盖掉呢?
+		// 覆盖
+		if (std::get_if<T>(&it->val) == nullptr)
+		{
+
+			it->val.emplace<T>(val);
+			
+		}
+		else
+		{
+			it->val = val;
+		}
+	}
+
+	template <typename T>
+	constexpr T* GetRef(const GalGuiID key, T val = T{})
+	{
+		if (std::is_same_v<T, bool>)
+		{
+			// 由于我们的容器储存的元素类型相同,所以我们可以对任意一个元素进行断言
+			// 在可以要求其转为 int 的情况下才能使用 bool
+			// TODO 也许应该换个方式
+			GalAssert(std::get_if<int>(&data[0].val) != nullptr);
+
+			return static_cast<bool*>(this->GetRef<int>(key, val ? 1 : 0));
+		}
+		
+		const auto it = this->LowerBound(const_cast<GalVector<GalGuiStoragePair>&>(data), key);
+		if (it == data.End() || it->key != key)
+		{
+			// 取引用的话没有直接插入
+			it = data.Insert(it, { key, val });
+		}
+		
+		struct Output
+		{
+			constexpr int* operator()(int* v) const
+			{
+				return v;
+			}
+			constexpr float* operator()(float* v) const
+			{
+				return v;
+			}
+			constexpr void** operator()(void** v) const
+			{
+				return v;
+			}
+			void operator()(const std::any&) const
+			{
+				// 不支持的类型抛出异常
+				throw std::bad_any_cast();
+			}
+		};
+
+		// 注意这里需要传指针过去
+		return std::visit(Output(), &it->val);
+	}
+	
 	constexpr void SetAllInt(const int val)
 	{
 		for(int i = 0; i < data.Size(); ++i)
 		{
-			data[i].iVal = val;
+			auto& v = data[i].val;
+			if(std::get_if<int>(&v) == nullptr)
+			{
+				// TODO 如果目标不是 int 类型怎么处理?
+				// TODO 覆盖
+				v.emplace<int>(val);
+			}
+			else
+			{
+				std::get<int>(data[i].val) = val;
+			}
 		}
 	}
 
@@ -2789,7 +2943,7 @@ struct GalGuiStorage
 	{
 		if(data.size > 1)
 		{
-			qsort(data.data, data.Size(), sizeof(GalGuiStoragePair),
+			::qsort(data.data, data.Size(), sizeof(GalGuiStoragePair),
 				[](const void* lhs, const void* rhs) -> int
 				{
 					if (static_cast<const GalGuiStoragePair*>(lhs)->key > static_cast<const GalGuiStoragePair*>(rhs)->key)
@@ -2806,138 +2960,6 @@ struct GalGuiStorage
 		}
 	}
 };
-
-static constexpr GalGuiStorage::GalGuiStoragePair* LowerBound(GalVector<GalGuiStorage::GalGuiStoragePair>& data, const GalGuiID key)
-{
-	auto first = data.Begin();
-	auto count = data.Size();
-
-	while(count > 0)
-	{
-		const auto count2 = count >> 2;
-		auto mid = first + count2;
-		if(mid->key < key)
-		{
-			first = ++mid;
-			count -= count2 + 1;
-		}
-		else
-		{
-			count = count2;
-		}
-	}
-	return first;
-}
-
-constexpr int GalGuiStorage::GetInt(const GalGuiID key, const int defaultVal) const
-{
-	// 虽然不会改变data,但是要用到的函数不能返回常指针,其他地方会有修改其值的情况,所以用了个const_cast转型
-	const auto it = LowerBound(const_cast<GalVector<GalGuiStoragePair>&>(data), key);
-	if (it == data.End() || it->key != key)
-	{
-		return defaultVal;
-	}
-	return it->iVal;
-}
-
-constexpr void GalGuiStorage::SetInt(const GalGuiID key, const int val)
-{
-	const auto it = LowerBound(data, key);
-	if(it == data.End() || it->key != key)
-	{
-		data.Insert(it, { key, val });
-		return;
-	}
-	it->iVal = val;
-}
-
-constexpr bool GalGuiStorage::GetBool(const GalGuiID key, const bool defaultVal) const
-{
-	return this->GetInt(key, defaultVal ? 1 : 0) != 0;
-}
-
-constexpr void GalGuiStorage::SetBool(const GalGuiID key, const bool val)
-{
-	this->SetInt(key, val ? 1 : 0);
-}
-
-constexpr float GalGuiStorage::GetFloat(const GalGuiID key, const float defaultVal) const
-{
-	const auto it = LowerBound(const_cast<GalVector<GalGuiStoragePair>&>(data), key);
-	if (it == data.End() || it->key != key)
-	{
-		return defaultVal;
-	}
-	return it->fVal;
-}
-
-constexpr void GalGuiStorage::SetFloat(const GalGuiID key, const float val)
-{
-	const auto it = LowerBound(const_cast<GalVector<GalGuiStoragePair>&>(data), key);
-	if (it == data.End() || it->key != key)
-	{
-		data.Insert(it, { key, val });
-		return;
-	}
-	it->fVal = val;
-}
-
-constexpr void* GalGuiStorage::GetPtr(const GalGuiID key) const
-{
-	const auto it = LowerBound(const_cast<GalVector<GalGuiStoragePair>&>(data), key);
-	if(it == data.End() || it->key != key)
-	{
-		return nullptr;
-	}
-	return it->pVal;
-}
-
-constexpr void GalGuiStorage::SetPtr(const GalGuiID key, void* val)
-{
-	const auto it = LowerBound(const_cast<GalVector<GalGuiStoragePair>&>(data), key);
-	if (it == data.End() || it->key != key)
-	{
-		data.Insert(it, { key, val });
-		return;
-	}
-	it->pVal = val;
-}
-
-constexpr int* GalGuiStorage::GetIntRef(const GalGuiID key, const int defaultVal)
-{
-	auto it = LowerBound(data, key);
-	if(it == data.End() || it->key != key)
-	{
-		it = data.Insert(it, { key, defaultVal });
-	}
-	return &it->iVal;
-}
-
-constexpr bool* GalGuiStorage::GetBoolRef(const GalGuiID key, const bool defaultVal)
-{
-	return reinterpret_cast<bool*>(GetIntRef(key, defaultVal ? 1 : 0));
-}
-
-constexpr float* GalGuiStorage::GetFloatRef(const GalGuiID key, const float defaultVal)
-{
-	auto it = LowerBound(data, key);
-	if(it == data.End() || it->key != key)
-	{
-		it = data.Insert(it, { key, defaultVal });
-	}
-	return &it->fVal;
-}
-
-constexpr void** GalGuiStorage::GetPtrRef(const GalGuiID key, void* defaultVal)
-{
-	auto it = LowerBound(data, key);
-	if (it == data.End() || it->key != key)
-	{
-		it = data.Insert(it, { key, defaultVal });
-	}
-	return &it->pVal;
-}
-
 
 
 
