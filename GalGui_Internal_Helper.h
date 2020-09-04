@@ -637,15 +637,6 @@ enum class EnumGalGuiWindowFlags : GalGuiWindowFlags
 	GALGUI_WINDOW_FLAGS_CHILD_MENU = 1 << 28
 };
 
-using GalTextureID = void*;
-using GalGuiID = unsigned int;// 一个独有的 ID ,通常来自字符串的哈希值
-
-
-// 函数指针 GalGuiInputTextCallback
-//typedef int (*GalGuiInputTextCallback)(GalGuiInputTextCallbackData* data);
-// 函数指针 GalGuiSizeCallback
-//typedef void (*GalGuiSizeCallback)(GalGuiSizeCallbackData* data);
-
 using GalGuiLayoutType = int;
 enum class EnumGalGuiLayoutType : GalGuiLayoutType
 {
@@ -888,14 +879,27 @@ enum class EnumGalGuiPopupPositionPolicy
 	GALGUI_POPUP_POSITION_POLICY_COMBOBOX
 };
 
+enum class EnumGalFontAtlas
+{
+	GALGUI_FONT_ATLAS_NONE = 0,
+	GALGUI_FONT_ATLAS_NO_POWER_OF_TWO_HEIGHT = 1 << 0,
+	GALGUI_FONT_ATLAS_NO_MOUSE_CURSORS = 1 << 1,
+	GALGUI_FONT_ATLAS_NO_BACKED_LINES = 1 << 2
+};
+
 // 字符解码
 using GalWChar16 = unsigned short;
 using GalWChar32 = unsigned int;
 using GalWChar = GalWChar16;
 
-constexpr auto GalUnicodeCodePointInvalid = 0xFFFD;
-constexpr auto GalUnicodeCodePointMax = 0xFFFF;
+using GalTextureID = void*;
+using GalGuiID = unsigned int;// 一个独有的 ID ,通常来自字符串的哈希值
 
+
+// 函数指针 GalGuiInputTextCallback
+//typedef int (*GalGuiInputTextCallback)(GalGuiInputTextCallbackData* data);
+// 函数指针 GalGuiSizeCallback
+//typedef void (*GalGuiSizeCallback)(GalGuiSizeCallbackData* data);
 
 
 
@@ -922,22 +926,63 @@ inline auto GalMemSet(void* dest, const int val, const size_t size)
 	return memset(dest, val, size);
 }
 
+extern GalGuiContext* g_galGuiContext;
+
+struct GalNewDummy {};
+inline void* operator new(size_t, GalNewDummy, void* ptr)
+{
+	return ptr;
+}
+
+inline void operator delete(void*, GalNewDummy, void*) {}
+
+constexpr void* GalMemAlloc(const size_t size)
+{
+	if(GalGuiContext* context = g_galGuiContext)
+	{
+		context->++IO.MetricsActiveAllocations;
+	}
+	return malloc(size);
+}
+
+constexpr void GalMemFree(void* ptr)
+{
+	if(ptr)
+	{
+		if (GalGuiContext* context = g_galGuiContext)
+		{
+			context->--IO.MetricsActiveAllocations;
+		}
+	}
+	return free(ptr);
+}
+
+template <typename Ptr, typename T>
+constexpr decltype(auto) GalPlacementNew(Ptr ptr)
+{
+	return new(GalNewDummy(), ptr) T();
+}
+
+template <typename T>
+constexpr decltype(auto) GalNew()
+{
+	return new(GalNewDummy(), GalMemAlloc(sizeof(T))) T;
+}
+
+template <typename T>
+constexpr void GalDelete(T* ptr)
+{
+	if(ptr)
+	{
+		ptr->~T();
+		GalMemFree(ptr);
+	}
+}
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+constexpr auto GalUnicodeCodePointInvalid = 0xFFFD;
+constexpr auto GalUnicodeCodePointMax = 0xFFFF;
+constexpr auto GalDrawListTexLinesWidthMax = 63;
 
 
 
@@ -1036,8 +1081,6 @@ static constexpr GalU32 GCrc32LookupTable[256] =
     0xA00AE278,0xD70DD2EE,0x4E048354,0x3903B3C2,0xA7672661,0xD06016F7,0x4969474D,0x3E6E77DB,0xAED16A4A,0xD9D65ADC,0x40DF0B66,0x37D83BF0,0xA9BCAE53,0xDEBB9EC5,0x47B2CF7F,0x30B5FFE9,
     0xBDBDF21C,0xCABAC28A,0x53B39330,0x24B4A3A6,0xBAD03605,0xCDD70693,0x54DE5729,0x23D967BF,0xB3667A2E,0xC4614AB8,0x5D681B02,0x2A6F2B94,0xB40BBE37,0xC30C8EA1,0x5A05DF1B,0x2D02EF8D,
 };
-
-// Helpers: Hashing
 
 // Known size hash
 // It is ok to call ImHashData on a string with known length but the ### operator won't be supported.
@@ -1373,97 +1416,99 @@ constexpr int GalTextStrToUtf8(char* dest, const size_t length, const GalWChar* 
 }
 
 // Convert UTF-8 to 32-bit character, process single character input.
-constexpr int GalTextCharFromUtf8(unsigned int* out, const unsigned char* text, const unsigned char* textEnd)
+constexpr int GalTextCharFromUtf8(unsigned int* out, const char* text, const char* textEnd)
 {
-	if(!(text[0] & 0x80))
+	auto str = reinterpret_cast<const unsigned char*>(text);
+	
+	if(!(str[0] & 0x80))
 	{
-		*out = static_cast<unsigned int>(*text);
+		*out = static_cast<unsigned int>(*str);
 		return 1;
 	}
-	if((text[0] & 0xe0) == 0xc0)
+	if((str[0] & 0xe0) == 0xc0)
 	{
 		*out = GalUnicodeCodePointInvalid;
-		if(textEnd && reinterpret_cast<const char*>(textEnd) - reinterpret_cast<const char*>(text) < 2)
+		if(textEnd && textEnd - reinterpret_cast<const char*>(str) < 2)
 		{
 			return 1;
 		}
-		if(text[0] & 0xc2)
+		if(str[0] < 0xc2)
 		{
 			return 2;
 		}
-		unsigned int c = (*text++ & 0x1f) << 6;
-		if((text[0] & 0xc0) != 0x80)
+		unsigned int c = (*str++ & 0x1f) << 6;
+		if((str[0] & 0xc0) != 0x80)
 		{
 			return 2;
 		}
-		c += (*text & 0x3f);
+		c += (*str & 0x3f);
 		*out = c;
 		return 2;
 	}
-	if((text[0] & 0xf0) == 0xe0)
+	if((str[0] & 0xf0) == 0xe0)
 	{
 		*out = GalUnicodeCodePointInvalid;
-		if(textEnd && reinterpret_cast<const char*>(textEnd) - reinterpret_cast<const char*>(text) < 3)
+		if(textEnd && textEnd - reinterpret_cast<const char*>(str) < 3)
 		{
 			return 1;
 		}
-		if(text[0] == 0xe0 && (text[1] < 0xa0 || text[1] > 0xbf))
+		if(str[0] == 0xe0 && (str[1] < 0xa0 || str[1] > 0xbf))
 		{
 			return 3;
 		}
-		if(text[0] == 0xed && text[1] > 0x9f)
+		if(str[0] == 0xed && str[1] > 0x9f)
 		{
 			return 3;
 		}
-		unsigned int c = (*text++ & 0x0f) << 12;
-		if((text[0] & 0xc0) != 0x80)
+		unsigned int c = (*str++ & 0x0f) << 12;
+		if((str[0] & 0xc0) != 0x80)
 		{
 			return 3;
 		}
-		c += (*text++ & 0x3f) << 6;
-		if((text[0] & 0xc0) != 0x80)
+		c += (*str++ & 0x3f) << 6;
+		if((str[0] & 0xc0) != 0x80)
 		{
 			return 3;
 		}
-		c += (*text & 0x3f);
+		c += (*str & 0x3f);
 		*out = c;
 		return 3;
 	}
-	if((text[0] & 0xf8) == 0xf0)
+	if((str[0] & 0xf8) == 0xf0)
 	{
 		*out = GalUnicodeCodePointInvalid;
-		if (textEnd && reinterpret_cast<const char*>(textEnd) - reinterpret_cast<const char*>(text) < 4)
+		if (textEnd && textEnd - reinterpret_cast<const char*>(str) < 4)
 		{
 			return 1;
 		}
-		if(text[0] > 0xf4)
+		if(str[0] > 0xf4)
 		{
 			return 4;
 		}
-		if(text[0] == 0xf0 && (text[1] < 0x90 || text[1] > 0xbf))
+		if(str[0] == 0xf0 && (str[1] < 0x90 || str[1] > 0xbf))
 		{
 			return 4;
 		}
-		if(text[0] == 0xf4 && text[1] > 0x8f)
+		if(str[0] == 0xf4 && str[1] > 0x8f)
 		{
 			return 4;
 		}
-		unsigned int c = (*text++ & 0x07) << 18;
-		if((text[0] & 0xc0) != 0x80)
+		unsigned int c = (*str++ & 0x07) << 18;
+		if((str[0] & 0xc0) != 0x80)
 		{
 			return 4;
 		}
-		c += (*text++ & 0x3f) << 12;
-		if((text[0] & 0xc0) != 0x80)
+		c += (*str++ & 0x3f) << 12;
+		if((str[0] & 0xc0) != 0x80)
 		{
 			return 4;
 		}
-		c += (*text++ & 0x3f) << 6;
-		if((text[0] & 0xc0) != 0x80)
+		c += (*str++ & 0x3f) << 6;
+		if((str[0] & 0xc0) != 0x80)
 		{
 			return 4;
 		}
-		c += (*text & 0x3f);
+		c += (*str & 0x3f);
 		// utf-8 encodings of values used in surrogate pairs are invalid
 		if((c & 0xfffff800) == 0xd800)
 		{
@@ -1491,7 +1536,7 @@ constexpr int GalTextStrFromUtf8(
 	while(it < end - 1 && (!textEnd || text < textEnd) && *text)
 	{
 		unsigned int c = -1;
-		text += GalTextCharFromUtf8(&c, reinterpret_cast<const unsigned char*>(text), reinterpret_cast<const unsigned char*>(textEnd));
+		text += GalTextCharFromUtf8(&c, text, textEnd);
 		if(c == 0)
 		{
 			break;
@@ -1513,7 +1558,7 @@ constexpr int GalTextCountCharsFromUtf8(const char* text, const char* textEnd)
 	while((!textEnd || text < textEnd) && *text)
 	{
 		unsigned int c = -1;
-		text += GalTextCharFromUtf8(&c, reinterpret_cast<const unsigned char*>(text), reinterpret_cast<const unsigned char*>(textEnd));
+		text += GalTextCharFromUtf8(&c, text, textEnd);
 		if(c == 0)
 		{
 			break;
@@ -1527,10 +1572,10 @@ constexpr int GalTextCountCharsFromUtf8(const char* text, const char* textEnd)
 constexpr int GalTextCountUtf8BytesFromChar(const char* text, const char* textEnd)
 {
 	unsigned int dummy = 0;
-	return GalTextCharFromUtf8(&dummy, reinterpret_cast<const unsigned char*>(text), reinterpret_cast<const unsigned char*>(textEnd));
+	return GalTextCharFromUtf8(&dummy, text, textEnd);
 }
 
-static constexpr int GalTextCountUtf8BytesFromChar(unsigned int c)
+static constexpr int GalTextCountUtf8BytesFromChar(const unsigned int c)
 {
 	if (c < 0x80) return 1;
 	if (c < 0x800) return 2;
@@ -1567,7 +1612,7 @@ struct GalRect;
 struct GalGuiStorage;
 
 
-struct GalBitVector;                 // Store 1-bit per value
+struct GalBitVec;                 // Store 1-bit per value
 struct GalRect;                      // An axis-aligned rectangle (2 points)
 struct GalDrawDataBuilder;           // Helper to build a ImDrawData instance
 struct GalDrawListSharedData;        // Data shared between all ImDrawList instances
@@ -1637,6 +1682,113 @@ struct GalVec2
 	{
 		return reinterpret_cast<float*>(this);
 	}
+
+	constexpr GalVec2 operator+(const float scale) const
+	{
+		return { x + scale, y + scale };
+	}
+
+	constexpr GalVec2 operator-(const float scale) const
+	{
+		return { x - scale, y - scale };
+	}
+
+	constexpr GalVec2 operator*(const float scale) const
+	{
+		return { x * scale, y * scale };
+	}
+
+	constexpr GalVec2 operator/(const float scale) const
+	{
+		return { x / scale, y / scale };
+	}
+
+	constexpr GalVec2 operator+(const GalVec2& rhs) const
+	{
+		return { x + rhs.x, y + rhs.y };
+	}
+
+	constexpr GalVec2 operator-(const GalVec2& rhs) const
+	{
+		return { x - rhs.x, y - rhs.y };
+	}
+
+	constexpr GalVec2 operator*(const GalVec2& rhs) const
+	{
+		return { x * rhs.x, y * rhs.y };
+	}
+
+	constexpr GalVec2 operator/(const GalVec2& rhs) const
+	{
+		return { x / rhs.x, y / rhs.y };
+	}
+
+	constexpr GalVec2& operator+=(const float scale)
+	{
+		x += scale;
+		y += scale;
+		return *this;
+	}
+
+	constexpr GalVec2& operator-=(const float scale)
+	{
+		x -= scale;
+		y -= scale;
+		return *this;
+	}
+
+	constexpr GalVec2& operator*=(const float scale)
+	{
+		x *= scale;
+		y *= scale;
+		return *this;
+	}
+
+	constexpr GalVec2& operator/=(const float scale)
+	{
+		x /= scale;
+		y /= scale;
+		return *this;
+	}
+
+	constexpr GalVec2& operator+=(const GalVec2& rhs)
+	{
+		x += rhs.x;
+		y += rhs.x;
+		return *this;
+	}
+
+	constexpr GalVec2& operator-=(const GalVec2& rhs)
+	{
+		x -= rhs.x;
+		y -= rhs.x;
+		return *this;
+	}
+
+	constexpr GalVec2& operator*=(const GalVec2& rhs)
+	{
+		x *= rhs.x;
+		y *= rhs.x;
+		return *this;
+	}
+
+	constexpr GalVec2& operator/=(const GalVec2& rhs)
+	{
+		x /= rhs.x;
+		y /= rhs.x;
+		return *this;
+	}
+
+	// 没有 > 和 < 比较,只有从两个 GalVec2 的组合情况中获得 最大/最小 的组合
+	static constexpr GalVec2 GalVec2Min(const GalVec2& lhs, const GalVec2& rhs)
+	{
+		return { lhs.x < rhs.x ? lhs.x : rhs.x, lhs.y < rhs.y ? lhs.y : rhs.y };
+	}
+
+	static constexpr GalVec2 GalVec2Max(const GalVec2& lhs, const GalVec2& rhs)
+	{
+		return { lhs.x >= rhs.x ? lhs.x : rhs.x, lhs.y >= rhs.y ? lhs.y : rhs.y };
+	}
 };
 
 struct GalVec2Half
@@ -1682,128 +1834,22 @@ struct GalVec4
 	{
 		return reinterpret_cast<float*>(this);
 	}
+
+	constexpr GalVec4 operator+(const GalVec4& rhs) const
+	{
+		return { x + rhs.x, y + rhs.y, z + rhs.z, w + rhs.w };
+	}
+
+	constexpr GalVec4 operator-(const GalVec4& rhs) const
+	{
+		return { x - rhs.x, y - rhs.y, z - rhs.z, w - rhs.w };
+	}
+
+	constexpr GalVec4 operator*(const GalVec4& rhs) const
+	{
+		return { x * rhs.x, y * rhs.y, z * rhs.z, w * rhs.w };
+	}
 };
-
-static constexpr GalVec2 operator+(const GalVec2& vec, const float scale)
-{
-	return { vec.x + scale, vec.y + scale };
-}
-
-static constexpr GalVec2 operator-(const GalVec2& vec, const float scale)
-{
-	return { vec.x - scale, vec.y - scale };
-}
-
-static constexpr GalVec2 operator*(const GalVec2& vec, const float scale)
-{
-	return { vec.x * scale, vec.y * scale };
-}
-
-static constexpr GalVec2 operator/(const GalVec2& vec, const float scale)
-{
-	return { vec.x / scale, vec.y / scale };
-}
-
-static constexpr GalVec2 operator+(const GalVec2& lhs, const GalVec2& rhs)
-{
-	return { lhs.x + rhs.x, lhs.y + rhs.y };
-}
-
-static constexpr GalVec2 operator-(const GalVec2& lhs, const GalVec2& rhs)
-{
-	return { lhs.x - rhs.x, lhs.y - rhs.y };
-}
-
-static constexpr GalVec2 operator*(const GalVec2& lhs, const GalVec2& rhs)
-{
-	return { lhs.x * rhs.x, lhs.y * rhs.y };
-}
-
-static constexpr GalVec2 operator/(const GalVec2& lhs, const GalVec2& rhs)
-{
-	return { lhs.x / rhs.x, lhs.y / rhs.y };
-}
-
-static constexpr GalVec2& operator+=(GalVec2& vec, const float scale)
-{
-	vec.x += scale;
-	vec.y += scale;
-	return vec;
-}
-
-static constexpr GalVec2& operator-=(GalVec2& vec, const float scale)
-{
-	vec.x -= scale;
-	vec.y -= scale;
-	return vec;
-}
-
-static constexpr GalVec2& operator*=(GalVec2& vec, const float scale)
-{
-	vec.x *= scale;
-	vec.y *= scale;
-	return vec;
-}
-
-static constexpr GalVec2& operator/=(GalVec2& vec, const float scale)
-{
-	vec.x /= scale;
-	vec.y /= scale;
-	return vec;
-}
-
-static constexpr GalVec2& operator+=(GalVec2& lhs, const GalVec2& rhs)
-{
-	lhs.x += rhs.x;
-	lhs.y += rhs.x;
-	return lhs;
-}
-
-static constexpr GalVec2& operator-=(GalVec2& lhs, const GalVec2& rhs)
-{
-	lhs.x -= rhs.x;
-	lhs.y -= rhs.x;
-	return lhs;
-}
-
-static constexpr GalVec2& operator*=(GalVec2& lhs, const GalVec2& rhs)
-{
-	lhs.x *= rhs.x;
-	lhs.y *= rhs.x;
-	return lhs;
-}
-
-static constexpr GalVec2& operator/=(GalVec2& lhs, const GalVec2& rhs)
-{
-	lhs.x /= rhs.x;
-	lhs.y /= rhs.x;
-	return lhs;
-}
-
-static constexpr GalVec2 GalVec2Min(const GalVec2& lhs, const GalVec2& rhs)
-{
-	return { lhs.x < rhs.x ? lhs.x : rhs.x, lhs.y < rhs.y ? lhs.y : rhs.y };
-}
-
-static constexpr GalVec2 GalVec2Max(const GalVec2& lhs, const GalVec2& rhs)
-{
-	return { lhs.x >= rhs.x ? lhs.x : rhs.x, lhs.y >= rhs.y ? lhs.y : rhs.y };
-}
-
-static constexpr GalVec4 operator+(const GalVec4& lhs, const GalVec4& rhs)
-{
-	return { lhs.x + rhs.x, lhs.y + rhs.y, lhs.z + rhs.z, lhs.w + rhs.w };
-}
-
-static constexpr GalVec4 operator-(const GalVec4& lhs, const GalVec4& rhs)
-{
-	return { lhs.x - rhs.x, lhs.y - rhs.y, lhs.z - rhs.z, lhs.w - rhs.w };
-}
-
-static constexpr GalVec4 operator*(const GalVec4& lhs, const GalVec4& rhs)
-{
-	return { lhs.x * rhs.x, lhs.y * rhs.y, lhs.z * rhs.z, lhs.w * rhs.w };
-}
 
 template <>
 constexpr GalVec2 GalClamp(const GalVec2& v, const GalVec2& mn, const GalVec2& mx)
@@ -1889,11 +1935,6 @@ constexpr float GalLinearSweep(const float current, const float target, const fl
 		return std::max(current - speed, target);
 	}
 	return current;
-}
-
-constexpr GalVec2 GalMul(const GalVec2& lhs, const GalVec2& rhs)
-{
-	return { lhs.x * rhs.x, lhs.y * rhs.y };
 }
 
 constexpr GalVec2 GalLineClosestPoint(const GalVec2& a, const GalVec2& b, const GalVec2& p)
@@ -2076,7 +2117,8 @@ constexpr void GalTriangleBarycentricCoords(
 
 constexpr float GalTriangleArea(const GalVec2& a, const GalVec2& b, const GalVec2& c)
 {
-	return std::abs(a.x * (b.y - c.y) + b.x * (c.y - a.y) + c.x * (a.y - b.y)) * 0.5f;
+	const auto v = a.x * (b.y - c.y) + b.x * (c.y - a.y) + c.x * (a.y - b.y);
+	return (v > 0.0f ? v : -v) * 0.5f;
 }
 
 constexpr GalGuiDir GalGetDirQuadrantFromDelta(float dx, float dy)
@@ -2121,58 +2163,58 @@ struct GalRect
 	{
 		return static_cast<GalVec4>(*this);
 	}
-	
-	constexpr GalVec2 GetCenter() const
+
+	[[nodiscard]] constexpr GalVec2 GetCenter() const
 	{
 		return { (min.x + max.x) * 0.5f, (min.y + max.y) * 0.5f };
 	}
 
-	constexpr GalVec2 GetSize() const
+	[[nodiscard]] constexpr GalVec2 GetSize() const
 	{
 		return { max.x - min.x, max.y - min.y };
 	}
 
-	constexpr float GetWidth() const
+	[[nodiscard]] constexpr float GetWidth() const
 	{
 		return max.x - min.x;
 	}
 
-	constexpr float GetHeight() const
+	[[nodiscard]] constexpr float GetHeight() const
 	{
 		return max.y - min.y;
 	}
 
-	constexpr GalVec2 GetTopLeft() const
+	[[nodiscard]] constexpr GalVec2 GetTopLeft() const
 	{
 		return min;
 	}
 
-	constexpr GalVec2 GetTopRight() const
+	[[nodiscard]] constexpr GalVec2 GetTopRight() const
 	{
 		return { max.x, min.y };
 	}
 
-	constexpr GalVec2 GetBottomLeft() const
+	[[nodiscard]] constexpr GalVec2 GetBottomLeft() const
 	{
 		return { min.x, max.y };
 	}
 
-	constexpr GalVec2 GetBottomRight() const
+	[[nodiscard]] constexpr GalVec2 GetBottomRight() const
 	{
 		return max;
 	}
 
-	constexpr bool Contains(const GalVec2& point) const
+	[[nodiscard]] constexpr bool Contains(const GalVec2& point) const
 	{
 		return point.x >= min.x && point.y >= min.y && point.x < max.x && point.y < max.y;
 	}
 	
-	constexpr bool Contains(const GalRect& rect) const
+	[[nodiscard]] constexpr bool Contains(const GalRect& rect) const
 	{
 		return rect.min.x >= min.x && rect.min.y >= min.y && rect.max.x <= max.x && rect.max.y <= max.y;
 	}
 	
-	constexpr bool Overlaps(const GalRect& rect) const
+	[[nodiscard]] constexpr bool Overlaps(const GalRect& rect) const
 	{
 		return rect.min.x < max.x && rect.max.x > min.x && rect.min.y < max.y && rect.max.y > min.y;
 	}
@@ -2250,8 +2292,8 @@ struct GalRect
 	// Simple version, may lead to an inverted rectangle, which is fine for Contains/Overlaps test but not for display.
 	constexpr void ClipWith(const GalRect& rect)
 	{
-		min = GalVec2Max(min, rect.min);
-		max = GalVec2Min(max, rect.max);
+		min = GalVec2::GalVec2Max(min, rect.min);
+		max = GalVec2::GalVec2Min(max, rect.max);
 	}
 
 	// Full version, ensure both points are fully clipped.
@@ -2267,7 +2309,7 @@ struct GalRect
 		max = GalFloor(max);
 	}
 
-	constexpr bool IsInverted() const
+	[[nodiscard]] constexpr bool IsInverted() const
 	{
 		return min.x > max.x || min.y > max.y;
 	}
@@ -2295,7 +2337,6 @@ struct GalRect
  *						GalVector 
  * ======================================================
  */
-
 template <typename T>
 struct GalVector
 {
@@ -2339,7 +2380,7 @@ struct GalVector
 	{
 		if(data)
 		{
-			GalGui::Free(data);
+			::GalMemFree(data);
 		}
 	}
 
@@ -2355,22 +2396,22 @@ struct GalVector
 		return data[index];
 	}
 	
-	constexpr bool Empty() const
+	[[nodiscard]] constexpr bool Empty() const
 	{
 		return size == 0;
 	}
 
-	constexpr size_t Size() const
+	[[nodiscard]] constexpr size_t Size() const
 	{
 		return size;
 	}
 
-	constexpr size_t SizeInBytes() const
+	[[nodiscard]] constexpr size_t SizeInBytes() const
 	{
 		return size * sizeof(T);
 	}
 
-	constexpr size_t Capacity() const
+	[[nodiscard]] constexpr size_t Capacity() const
 	{
 		return capacity;
 	}
@@ -2381,7 +2422,7 @@ struct GalVector
 		{
 			size = 0;
 			capacity = 0;
-			GalGui::Free(data);
+			::GalMemFree(data);
 			data = nullptr;
 		}
 	}
@@ -2391,7 +2432,7 @@ struct GalVector
 		return data;
 	}
 
-	constexpr const T* Begin() const
+	[[nodiscard]] constexpr const T* Begin() const
 	{
 		return data;
 	}
@@ -2401,7 +2442,7 @@ struct GalVector
 		return data + size;
 	}
 
-	constexpr const T* End() const
+	[[nodiscard]] constexpr const T* End() const
 	{
 		return data + size;
 	}
@@ -2412,7 +2453,7 @@ struct GalVector
 		return data[0];
 	}
 
-	constexpr const T& Front() const
+	[[nodiscard]] constexpr const T& Front() const
 	{
 		GalAssert(size > 0);
 		return data[0];
@@ -2424,7 +2465,7 @@ struct GalVector
 		return data[size - 1];
 	}
 
-	constexpr const T& Back() const
+	[[nodiscard]] constexpr const T& Back() const
 	{
 		GalAssert(size > 0);
 		return data[size - 1];
@@ -2433,17 +2474,17 @@ struct GalVector
 	constexpr void Reserve(const size_t newCapacity)
 	{
 		if (newCapacity <= capacity) return;
-		auto newData = GalGui::Alloc(newCapacity * sizeof(T));
+		auto newData = ::GalMemAlloc(newCapacity * sizeof(T));
 		if (data)
 		{
 			::GalMemCpy(newData, size * sizeof(T), data, size * sizeof(T));
-			GalGui::Free(data);
+			::GalMemFree(data);
 		}
-		data = newData;
+		data = static_cast<T*>(newData);
 		capacity = newCapacity;
 	}
 	
-	constexpr size_t GrowCapacity(size_t newSize) const
+	[[nodiscard]] constexpr size_t GrowCapacity(size_t newSize) const
 	{
 		auto newCapacity = capacity ? capacity + capacity / 2 : 8;
 		return newCapacity > newSize ? newCapacity : newSize;
@@ -2549,7 +2590,7 @@ struct GalVector
 		{
 			this->Reserve(this->GrowCapacity(size + 1));
 		}
-		if(off < size)
+		if(static_cast<size_t>(off) < size)
 		{
 			const auto s = (size - off) * sizeof(T);
 			::GalMemMove(data + off + 1, s, data + off, s);
@@ -2559,7 +2600,7 @@ struct GalVector
 		return data + off;
 	}
 
-	constexpr bool Contains(const T& v) const
+	[[nodiscard]] constexpr bool Contains(const T& v) const
 	{
 		T* it = data;
 		const T* end = data + size;
@@ -2596,39 +2637,6 @@ struct GalVector
 	}
 };
 
-constexpr bool GalBitArrayTestBit(const GalU32* arr, const int n)
-{
-	const GalU32 mask = 1 << (n & 31);
-	return (arr[n >> 5] & mask) != 0;
-}
-
-constexpr void GalBitArrayClearBit(GalU32* arr, const int n)
-{
-	const GalU32 mask = 1 << (n & 31);
-	arr[n >> 5] &= ~mask;
-}
-
-constexpr void GalBitArraySetBit(GalU32* arr, const int n)
-{
-	const GalU32 mask = 1 << (n & 31);
-	arr[n >> 5] |= mask;
-}
-
-constexpr void GalBitArrayBitRange(GalU32* arr, int n, const int n2)
-{
-	while(n <= n2)
-	{
-		const auto aMod = n & 31;
-		const auto bMod = ((n2 >= n + 31) ? 31 : (n2 & 31)) + 1;
-		const auto mask = 
-			static_cast<GalU32>((static_cast<GalU64>(1) << bMod) - 1)
-			& 
-			~static_cast<GalU32>((static_cast<GalU64>(1) << aMod) - 1);
-		arr[n >> 5] |= mask;
-		n = (n + 32) & ~31;
-	}
-}
-
 /* =====================================================
  *						GalBitVec
  *						GalBitVec
@@ -2655,7 +2663,7 @@ struct GalBitVec
 {
 	GalVector<GalU32> storage;
 
-	constexpr void Create(const size_t size)
+	void Create(const size_t size)
 	{
 		storage.Resize((size + 31) >> 5);
 		GalMemSet(storage.data, 0, storage.size * sizeof(storage.data[0]));
@@ -2666,67 +2674,45 @@ struct GalBitVec
 		storage.Clear();
 	}
 
-	constexpr bool TestBit(const int n) const
+	[[nodiscard]] constexpr bool TestBit(const size_t n) const
 	{
 		GalAssert(n < (storage.size << 5));
-		return GalBitArrayTestBit(storage.data, n);
+		
+		const GalU32 mask = 1 << (n & 31);
+		return (storage.data[n >> 5] & mask) != 0;
 	}
 
-	constexpr void SetBit(const int n) const
+	constexpr void SetBit(const size_t n) const
 	{
 		GalAssert(n < (storage.size << 5));
-		GalBitArraySetBit(storage.data, n);
+
+		const GalU32 mask = 1 << (n & 31);
+		storage.data[n >> 5] |= mask;
 	}
 
-	constexpr void ClearBit(const int n) const
+	constexpr void ClearBit(const size_t n) const
 	{
 		GalAssert(n < (storage.size << 5));
-		GalBitArrayClearBit(storage.data, n);
+
+		const GalU32 mask = 1 << (n & 31);
+		storage.data[n >> 5] &= ~mask;
+	}
+
+	constexpr void SetBitRange(int n, const int n2) const
+	{
+		while (n <= n2)
+		{
+			const auto aMod = n & 31;
+			const auto bMod = ((n2 >= n + 31) ? 31 : (n2 & 31)) + 1;
+			const auto mask =
+				static_cast<GalU32>((static_cast<GalU64>(1) << bMod) - 1)
+				&
+				~static_cast<GalU32>((static_cast<GalU64>(1) << aMod) - 1);
+			storage.data[n >> 5] |= mask;
+			n = (n + 32) & ~31;
+		}
 	}
 };
-
-/* =====================================================
- *						GalPool
- *						GalPool
- *						GalPool
- *						GalPool
- *						GalPool
- *						GalPool
- *						GalPool
- *						GalPool
- *						GalPool
- *						GalPool
- *						GalPool
- *						GalPool
- *						GalPool
- *						GalPool
- *						GalPool
- *						GalPool
- *						GalPool
- *						GalPool
- *						GalPool
- * ======================================================
- */
-using GalPoolIndex = int;
-template <typename T>
-struct GalPool
-{
-	GalVector<T> buffer;
-	GalGuiStorage map;
-	GalPoolIndex freeIndex;
-
-	
-	
-};
-
-
-
-
-
-
-
-
-
 
 /* =====================================================
  *						GalGuiStorage
@@ -2750,17 +2736,17 @@ struct GalPool
  *						GalGuiStorage
  * ======================================================
  */
-// template <typename PtrType>
-// TODO 这里应该可以使用模版,但是有很多问题
-// TODO 可以用参数包而不是写死的 int, float, PtrType 作为类型,但是我们缺少类型检查的手段
-// TODO 注意: 如果修改了 std::variant<int, float, void*> val 的类型,那么下面的函数也要修改,因为他们不得不写死
+ // template <typename PtrType>
+ // TODO 这里应该可以使用模版,但是有很多问题
+ // TODO 可以用参数包而不是写死的 int, float, PtrType 作为类型,但是我们缺少类型检查的手段
+ // TODO 注意: 如果修改了 std::variant<int, float, void*> val 的类型,那么下面的函数也要修改,因为他们不得不写死
 struct GalGuiStorage
 {
 	// [Internal]
 	struct GalGuiStoragePair
 	{
 		GalGuiID key;
-		
+
 		std::variant<int, float, void*> val;
 
 		constexpr GalGuiStoragePair(const GalGuiID key, const int val) : key(key), val(val) {  }
@@ -2801,18 +2787,13 @@ struct GalGuiStorage
 	template <typename T>
 	constexpr T Get(const GalGuiID key, const T defaultVal = T{})
 	{
-		if(std::is_same_v<T, bool>)
+		if (std::is_same_v<T, bool>)
 		{
-			// 由于我们的容器储存的元素类型相同,所以我们可以对任意一个元素进行断言
-			// 在可以要求其转为 int 的情况下才能使用 bool
-			// TODO 也许应该换个方式
-			GalAssert(std::get_if<int>(&data[0].val) != nullptr);
-			
 			return static_cast<bool>(this->Get<int>(key, defaultVal ? 1 : 0));
 		}
-		
+
 		// 虽然不会改变data,但是要用到的函数不能返回常指针,其他地方会有修改其值的情况,所以用了个const_cast转型
-		const auto it = this->LowerBound(const_cast<GalVector<GalGuiStoragePair>&>(data), key);
+		const auto it = LowerBound(const_cast<GalVector<GalGuiStoragePair>&>(data), key);
 		if (it == data.End() || it->key != key)
 		{
 			return defaultVal;
@@ -2845,17 +2826,12 @@ struct GalGuiStorage
 	template <typename T>
 	constexpr void Set(const GalGuiID key, T val)
 	{
-		if(std::is_same_v<T, bool>)
+		if (std::is_same_v<T, bool>)
 		{
-			// 由于我们的容器储存的元素类型相同,所以我们可以对任意一个元素进行断言
-			// 在可以要求其转为 int 的情况下才能使用 bool
-			// TODO 也许应该换个方式
-			GalAssert(std::get_if<int>(&data[0].val) != nullptr);
-
 			return this->Set<int>(key, val ? 1 : 0);
 		}
-		
-		const auto it = this->LowerBound(data, key);
+
+		const auto it = LowerBound(data, key);
 		if (it == data.End() || it->key != key)
 		{
 			data.Insert(it, { key, val });
@@ -2863,12 +2839,10 @@ struct GalGuiStorage
 		}
 
 		// TODO 在设置的时候,如果目标的类型与我们的不一致,是算错误呢还是覆盖掉呢?
-		// 覆盖
+		// TODO 覆盖
 		if (std::get_if<T>(&it->val) == nullptr)
 		{
-
 			it->val.emplace<T>(val);
-			
 		}
 		else
 		{
@@ -2881,21 +2855,16 @@ struct GalGuiStorage
 	{
 		if (std::is_same_v<T, bool>)
 		{
-			// 由于我们的容器储存的元素类型相同,所以我们可以对任意一个元素进行断言
-			// 在可以要求其转为 int 的情况下才能使用 bool
-			// TODO 也许应该换个方式
-			GalAssert(std::get_if<int>(&data[0].val) != nullptr);
-
 			return static_cast<bool*>(this->GetRef<int>(key, val ? 1 : 0));
 		}
-		
-		const auto it = this->LowerBound(const_cast<GalVector<GalGuiStoragePair>&>(data), key);
+
+		const auto it = LowerBound(const_cast<GalVector<GalGuiStoragePair>&>(data), key);
 		if (it == data.End() || it->key != key)
 		{
 			// 取引用的话没有直接插入
 			it = data.Insert(it, { key, val });
 		}
-		
+
 		struct Output
 		{
 			constexpr int* operator()(int* v) const
@@ -2920,13 +2889,13 @@ struct GalGuiStorage
 		// 注意这里需要传指针过去
 		return std::visit(Output(), &it->val);
 	}
-	
+
 	constexpr void SetAllInt(const int val)
 	{
-		for(int i = 0; i < data.Size(); ++i)
+		for (size_t i = 0; i < data.Size(); ++i)
 		{
 			auto& v = data[i].val;
-			if(std::get_if<int>(&v) == nullptr)
+			if (std::get_if<int>(&v) == nullptr)
 			{
 				// TODO 如果目标不是 int 类型怎么处理?
 				// TODO 覆盖
@@ -2939,11 +2908,11 @@ struct GalGuiStorage
 		}
 	}
 
-	constexpr void BuildSortByKey() const
+	void BuildSortByKey() const
 	{
-		if(data.size > 1)
+		if (data.size > 1)
 		{
-			::qsort(data.data, data.Size(), sizeof(GalGuiStoragePair),
+			qsort(data.data, data.Size(), sizeof(GalGuiStoragePair),
 				[](const void* lhs, const void* rhs) -> int
 				{
 					if (static_cast<const GalGuiStoragePair*>(lhs)->key > static_cast<const GalGuiStoragePair*>(rhs)->key)
@@ -2958,6 +2927,135 @@ struct GalGuiStorage
 				}
 			);
 		}
+	}
+};
+
+/* =====================================================
+ *						GalPool
+ *						GalPool
+ *						GalPool
+ *						GalPool
+ *						GalPool
+ *						GalPool
+ *						GalPool
+ *						GalPool
+ *						GalPool
+ *						GalPool
+ *						GalPool
+ *						GalPool
+ *						GalPool
+ *						GalPool
+ *						GalPool
+ *						GalPool
+ *						GalPool
+ *						GalPool
+ *						GalPool
+ * ======================================================
+ */
+using GalPoolIndex = int;
+template <typename T>
+struct GalPool
+{
+	GalVector<T> buffer;		// Contiguous data
+	GalGuiStorage map;			// ID->Index
+	GalPoolIndex freeIndex;		// Next free idx to use
+
+	GalPool() : freeIndex(0) {}
+	~GalPool() { Clear(); };
+
+
+	GalPool(const GalPool& other) = delete;
+	GalPool(GalPool&& other) noexcept = delete;
+	GalPool& operator=(const GalPool& other) = delete;
+	GalPool& operator=(GalPool&& other) noexcept = delete;
+
+	constexpr T* GetByKey(const GalGuiID key)
+	{
+		auto index = map.Get<int>(key, -1);
+		return index != -1 ? &buffer[index] : nullptr;
+	}
+
+	constexpr T* GetByIndex(const GalPoolIndex index)
+	{
+		return &buffer[index];
+	}
+
+	constexpr GalPoolIndex GetIndex(const T* it) const
+	{
+		return buffer.IndexFromPtr(it);
+	}
+
+	constexpr T* GetOrAddByKey(const GalGuiID key)
+	{
+		const auto index = map.GetRef<int>(key, -1);
+		if(*index != -1)
+		{
+			return &buffer[*index];
+		}
+		*index = freeIndex;
+		return this->Add();
+	}
+
+	constexpr bool Contains(const T* it)
+	{
+		return it >= buffer.Begin() && it < buffer.End();
+	}
+
+	constexpr void Clear()
+	{
+		for(int i = 0; i < map.data.Size(); ++i)
+		{
+			auto index = std::get<int>(map.data[i].val);
+			if(index != -1)
+			{
+				buffer[index].~T();
+			}
+		}
+		map.Clear();
+		buffer.Clear();
+		freeIndex = 0;
+	}
+
+	constexpr T* Add()
+	{
+		auto index = freeIndex;
+		if(index == buffer.Size())
+		{
+			buffer.Resize(index + 1);
+			++freeIndex;
+		}
+		else
+		{
+			freeIndex = *static_cast<int*>(&buffer[index]);
+		}
+
+		::GalPlacementNew<T>(&buffer[index]);
+		
+		return &buffer[index];
+	}
+
+	constexpr void Remove(const GalGuiID key, const T* it)
+	{
+		this->Remove(key, this->GetIndex(it));
+	}
+
+	constexpr void Remove(const GalGuiID key, const GalPoolIndex index)
+	{
+		buffer[index].~T();
+		*static_cast<int*>(buffer[index]) = freeIndex;
+		freeIndex = index;
+		map.Set<int>(key, -1);
+	}
+
+	constexpr void Reserve(size_t capacity)
+	{
+		buffer.Resize(capacity);
+		map.data.Resize(capacity);
+	}
+
+	[[nodiscard]] constexpr size_t Size() const
+	{
+		return buffer.Size();
 	}
 };
 
@@ -2999,7 +3097,16 @@ struct GalGuiStorage
 
 
 
-extern GalGuiContext* g_galGuiContext;
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -3020,13 +3127,7 @@ struct GalFontGlyphRangesBuilder;
 struct GalFontAtlas;
 struct GalFont;
 
-enum class EnumGalFontAtlas
-{
-	GALGUI_FONT_ATLAS_NONE = 0,
-	GALGUI_FONT_ATLAS_NO_POWER_OF_TWO_HEIGHT = 1 << 0,
-	GALGUI_FONT_ATLAS_NO_MOUSE_CURSORS = 1 << 1,
-	GALGUI_FONT_ATLAS_NO_BACKED_LINES = 1 << 2
-};
+
 
 struct GalFontConfig
 {
@@ -3082,7 +3183,7 @@ struct GalFontAtlasCustomRect
 	unsigned short x = 0xffff;
 	unsigned short y = 0xffff;
 
-	constexpr bool IsPacked() const
+	[[nodiscard]] constexpr bool IsPacked() const
 	{
 		return x != 0xffff;
 	}
@@ -3092,31 +3193,102 @@ struct GalFontGlyphRangesBuilder
 {
 	GalVector<GalU32> usedChars;
 
-	constexpr void Clear()
+	void Clear()
 	{
-		auto sizeInBytes = (GalUnicodeCodePointMax + 1) / 8;
-		usedChars.resize(sizeInBytes / sizeof(GalU32));
+		const auto sizeInBytes = (GalUnicodeCodePointMax + 1) / 8;
+		usedChars.Resize(sizeInBytes / sizeof(GalU32));
 		memset(usedChars.data, 0, sizeInBytes);
+	}
+
+	[[nodiscard]] constexpr bool GetBit(const size_t n) const
+	{
+		const auto off = n >> 5;
+		const auto mask = 1u << (n & 31);
+		return (usedChars[off] & mask) != 0;
+	}
+
+	constexpr void SetBit(const size_t n)
+	{
+		const auto off = n >> 5;
+		const auto mask = 1u << (n & 31);
+		usedChars[off] |= mask;
+	}
+
+	constexpr void AddChar(const GalWChar c)
+	{
+		SetBit(c);
+	}
+
+	constexpr void AddText(const char* text, const char* textEnd = nullptr)
+	{
+		while(textEnd ? (text < textEnd) : *text)
+		{
+			unsigned int c = 0;
+			const int len = GalTextCharFromUtf8(&c, text, textEnd);
+			if(len == 0)
+			{
+				break;
+			}
+			text += len;
+			AddChar(c);
+		}
+	}
+
+	constexpr void AddRanges(const GalWChar* ranges)
+	{
+		for(;ranges[0]; ranges += 2)
+		{
+			for(auto c = ranges[0]; c <= ranges[1]; ++c)
+			{
+				AddChar(c);
+			}
+		}
+	}
+
+	constexpr void BuildRanges(GalVector<GalWChar>& outRanges) const
+	{
+		const auto max = GalUnicodeCodePointMax;
+		for(int i = 0; i <= max; ++i)
+		{
+			if(GetBit(i))
+			{
+				outRanges.PushBack(i);
+				while(i < max && GetBit(i + 1))
+				{
+					++i;
+				}
+				outRanges.PushBack(i);
+			}
+		}
+		outRanges.PushBack(0);
 	}
 };
 
 struct GalFontAtlas
 {
-	bool locked;				 // Marked as Locked by ImGui::NewFrame() so attempt to modify the atlas will assert.
-	GalFontAtlasFlags flags;	 // Build flags (see ImFontAtlasFlags_)
-	GalTextureID texID;			 // User data to refer to the texture once it has been uploaded to user's graphic systems. It is passed back to you during rendering via the ImDrawCmd structure.
-	int texDesireWidth;			 // Texture width desired by user before Build(). Must be a power-of-two. If have many glyphs your graphics API have texture size restrictions you may want to increase texture width to decrease height.
-	int texGlyphPadding;		 // Padding between glyphs within texture in pixels. Defaults to 1. If your rendering method doesn't rely on bilinear filtering you may set this to 0.
+	bool locked = false;				
+	GalFontAtlasFlags flags = static_cast<GalFontAtlasFlags>(EnumGalFontAtlasFlags::GAL_FONT_ATLAS_FLAGS_NONE);
+	GalTextureID texID = nullptr;	
+	int texDesireWidth = 0;			
+	int texGlyphPadding = 1;		
 
 	// [Internal]
-	unsigned char* texPixelsAlpha8;
-	unsigned int* texPixelsRGBA32;
-	int texWidth;
-	int texHeight;
-	GalVec2 texUVScale;
-	GalVec2 texUVWhitePixel;
-	GalVector<GalFont> fonts;
-	GalVector<GalFib>
+	unsigned char* texPixelsAlpha8 = nullptr;
+	unsigned int* texPixelsRGBA32 = nullptr;
+	int texWidth = 0;
+	int texHeight = 0;
+	GalVec2 texUVScale = { 0.0f, 0.0f };
+	GalVec2 texUVWhitePixel = { 0.0f, 0.0f };
+	GalVector<GalFont*> fonts;
+	GalVector<GalFontAtlasCustomRect> customRects;
+	GalVector<GalFontConfig> configData;
+	GalVec4 texUVLines[GalDrawListTexLinesWidthMax + 1];
+
+	// [Internal] Packing data
+	int packIDMouseCursors = -1;	// Custom texture rectangle ID for white pixel and mouse cu
+	int packIDLines = -1;		// Custom texture rectangle ID for baked anti-aliased lines
+
+	
 };
 
 struct GalFont
