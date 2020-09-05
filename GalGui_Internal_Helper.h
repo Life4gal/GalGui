@@ -901,15 +901,8 @@ using GalGuiID = unsigned int;// 一个独有的 ID ,通常来自字符串的哈
 // 函数指针 GalGuiSizeCallback
 //typedef void (*GalGuiSizeCallback)(GalGuiSizeCallbackData* data);
 
-
-
-
-
-template <typename Exp>
-constexpr void GalAssert(Exp exp)
-{
-	assert(exp);
-}
+// TODO 想办法取代这个macro
+#define GAL_ASSERT assert  // NOLINT(cppcoreguidelines-macro-usage)
 
 inline auto GalMemCpy(void* dest, const size_t destSize, void* source, const size_t sourceSize)
 {
@@ -987,8 +980,91 @@ constexpr size_t GalArraySize(const T(&)[Length])
 }
 
 
+using GalFileHandle = FILE*;
+inline GalFileHandle GalFileOpen(const char* filename, const char* mode)
+{
+	// TODO We need a fopen() wrapper because MSVC/Windows fopen doesn't handle UTF-8 filenames.
 
+	GalFileHandle file;
+	// fopen is unsafe, although the errno is useless for us
+	fopen_s(&file, filename, mode);
+	return file;
+}
 
+inline bool GalFileClose(const GalFileHandle file)
+{
+	return fclose(file) == 0;
+}
+
+inline GalU64 GalFileGetSize(const GalFileHandle file)
+{
+	long off;
+	long size;
+	return
+	(off = ftell(file)) != -1 && 
+	!fseek(file, 0, SEEK_END) && 
+	(size = ftell(file)) != -1 && 
+	!fseek(file, off, SEEK_SET)
+	? static_cast<GalU64>(size) : static_cast<GalU64>(-1);
+}
+
+inline GalU64 GalFileRead(void* data, const GalU64 size, const GalU64 count, const GalFileHandle file)
+{
+	return fread(data, size, count, file);
+}
+
+inline GalU64 GalFileWrite(const void* data, const GalU64 size, const GalU64 count, const GalFileHandle file)
+{
+	return fwrite(data, size, count, file);
+}
+
+inline void* GalFileLoadToMemory(const char* filename, const char* mode, size_t* outSize, int paddingBytes)
+{
+	GAL_ASSERT(filename && mode);
+	if (outSize)
+	{
+		*outSize = 0;
+	}
+
+	GalFileHandle file;
+	if((file = GalFileOpen(filename, mode)) == nullptr)
+	{
+		return nullptr;
+	}
+
+	const auto size = GalFileGetSize(file);
+	if(size == static_cast<GalU64>(-1))
+	{
+		GalFileClose(file);
+		return nullptr;
+	}
+	
+	const auto data = GalMemAlloc(size + paddingBytes);
+	if(data == nullptr)
+	{
+		GalFileClose(file);
+		return nullptr;
+	}
+	if(GalFileRead(data, 1, size, file) != size)
+	{
+		GalFileClose(file);
+		GalMemFree(data);
+		return nullptr;
+	}
+
+	if(paddingBytes > 0)
+	{
+		GalMemSet((static_cast<char*>(data)+size), 0, paddingBytes);
+	}
+
+	GalFileClose(file);
+	if(outSize)
+	{
+		*outSize = size;
+	}
+
+	return data;
+}
 
 
 constexpr auto GalUnicodeCodePointInvalid = 0xFFFD;
@@ -1216,7 +1292,7 @@ constexpr const char* GalStrSkipBlank(const char* str)
 	return str;
 }
 
-constexpr int GalFormatString(char* buffer, const size_t length, const char* fmt, ...)
+inline int GalFormatString(char* buffer, const size_t length, const char* fmt, ...)
 {
 	va_list args = nullptr;
 	va_start(args, fmt);
@@ -1292,7 +1368,7 @@ constexpr const char* GalParseFormatFindEnd(const char* str)
 //  fmt = "%.3f"       -> return fmt
 //  fmt = "hello %.3f" -> return fmt + 6
 //  fmt = "%.3f hello" -> return buf written with "%.3f"
-constexpr const char* GalParseFormatTrimDecoration(const char* str, char* dest, size_t length)
+constexpr const char* GalParseFormatTrimDecoration(const char* str, char* dest, const size_t length)
 {
 	const auto start = GalParseFormatFindStart(str);
 	if(start[0] != '%')
@@ -1446,7 +1522,7 @@ constexpr int GalTextStrToUtf8(char* dest, const size_t length, const GalWChar* 
 }
 
 // Convert UTF-8 to 32-bit character, process single character input.
-constexpr int GalTextCharFromUtf8(unsigned int* out, const char* text, const char* textEnd)
+inline int GalTextCharFromUtf8(unsigned int* out, const char* text, const char* textEnd)
 {
 	auto str = reinterpret_cast<const unsigned char*>(text);
 	
@@ -1599,7 +1675,7 @@ constexpr int GalTextCountCharsFromUtf8(const char* text, const char* textEnd)
 	return count;
 }
 
-constexpr int GalTextCountUtf8BytesFromChar(const char* text, const char* textEnd)
+inline int GalTextCountUtf8BytesFromChar(const char* text, const char* textEnd)
 {
 	unsigned int dummy = 0;
 	return GalTextCharFromUtf8(&dummy, text, textEnd);
@@ -2008,7 +2084,7 @@ constexpr GalVec2 GalBezierClosestPoint(
 	const GalVec2& p, const int numSegments
 )
 {
-	GalAssert(numSegments > 0);
+	GAL_ASSERT(numSegments > 0);
 	auto last = p1;
 	GalVec2 closest{};
 	auto dist = FLT_MAX;
@@ -2088,7 +2164,7 @@ constexpr GalVec2 GalBezierClosestPointCasteljau(
 	const GalVec2& p, const float tessTol
 )
 {
-	GalAssert(tessTol > 0.0f);
+	GAL_ASSERT(tessTol > 0.0f);
 	auto last = p1;
 	GalVec2 closest{};
 	auto dist = FLT_MAX;
@@ -2416,13 +2492,13 @@ struct GalVector
 
 	T& operator[](size_t index)
 	{
-		GalAssert(index < size);
+		GAL_ASSERT(index < size);
 		return data[index];
 	}
 
 	const T& operator[](size_t index) const
 	{
-		GalAssert(index < size);
+		GAL_ASSERT(index < size);
 		return data[index];
 	}
 	
@@ -2479,35 +2555,35 @@ struct GalVector
 
 	constexpr T& Front()
 	{
-		GalAssert(size > 0);
+		GAL_ASSERT(size > 0);
 		return data[0];
 	}
 
 	[[nodiscard]] constexpr const T& Front() const
 	{
-		GalAssert(size > 0);
+		GAL_ASSERT(size > 0);
 		return data[0];
 	}
 
 	constexpr T& Back()
 	{
-		GalAssert(size > 0);
+		GAL_ASSERT(size > 0);
 		return data[size - 1];
 	}
 
 	[[nodiscard]] constexpr const T& Back() const
 	{
-		GalAssert(size > 0);
+		GAL_ASSERT(size > 0);
 		return data[size - 1];
 	}
 
 	constexpr void Reserve(const size_t newCapacity)
 	{
 		if (newCapacity <= capacity) return;
-		auto newData = ::GalMemAlloc(newCapacity * sizeof(T));
+		auto newData = ::GalMemAlloc(newCapacity * sizeof(T));  // NOLINT(bugprone-sizeof-expression)
 		if (data)
 		{
-			::GalMemCpy(newData, size * sizeof(T), data, size * sizeof(T));
+			::GalMemCpy(newData, size * sizeof(T), data, size * sizeof(T));  // NOLINT(bugprone-sizeof-expression)
 			::GalMemFree(data);
 		}
 		data = static_cast<T*>(newData);
@@ -2547,7 +2623,7 @@ struct GalVector
 
 	constexpr void Shrink(const size_t newSize)
 	{
-		GalAssert(newSize <= size);
+		GAL_ASSERT(newSize <= size);
 		size = newSize;
 	}
 
@@ -2557,13 +2633,13 @@ struct GalVector
 		{
 			this->Reserve(this->GrowCapacity(size + 1));
 		}
-		::GalMemCpy(&data[size], sizeof(v), const_cast<T*>(&v), sizeof(v));
+		::GalMemCpy(&data[size], sizeof(v), const_cast<T*>(&v), sizeof(v));  // NOLINT(bugprone-sizeof-expression)
 		++size;
 	}
 
 	constexpr void PopBack()
 	{
-		GalAssert(size > 0);
+		GAL_ASSERT(size > 0);
 		--size;
 	}
 
@@ -2581,7 +2657,7 @@ struct GalVector
 
 	constexpr T* Erase(const T* it)
 	{
-		::GalAssert(it >= data && it < data + size);
+		GAL_ASSERT(it >= data && it < data + size);
 		const std::ptrdiff_t off = it - data;
 		const auto s = (size - off - 1) * sizeof(T);
 		::GalMemMove(data + off, s, data + off + 1, s);
@@ -2591,7 +2667,7 @@ struct GalVector
 
 	constexpr T* Erase(const T* it, const T* last)
 	{
-		::GalAssert(it >= data && it < data + size && last > it && last <= data + size);
+		GAL_ASSERT(it >= data && it < data + size && last > it && last <= data + size);
 		const std::ptrdiff_t count = last - it;
 		const std::ptrdiff_t off = it - data;
 		const auto s = (size - off - count) * sizeof(T);
@@ -2602,7 +2678,7 @@ struct GalVector
 
 	constexpr T* EraseUnsorted(const T* it)
 	{
-		::GalAssert(it >= data && it < data + size);
+		GAL_ASSERT(it >= data && it < data + size);
 		const std::ptrdiff_t off = it - data;
 		if(it < data + size - 1)
 		{
@@ -2614,7 +2690,7 @@ struct GalVector
 
 	constexpr T* Insert(const T* it, const T& v)
 	{
-		::GalAssert(it >= data && it <= data + size);
+		GAL_ASSERT(it >= data && it <= data + size);
 		const std::ptrdiff_t off = it - data;
 		if(size == capacity)
 		{
@@ -2661,7 +2737,7 @@ struct GalVector
 
 	constexpr size_t IndexFromPtr(const T* it) const
 	{
-		::GalAssert(it >= data && it < data + size);
+		GAL_ASSERT(it >= data && it < data + size);
 		const std::ptrdiff_t off = it - data;
 		return off;
 	}
@@ -2706,7 +2782,7 @@ struct GalBitVec
 
 	[[nodiscard]] constexpr bool TestBit(const size_t n) const
 	{
-		GalAssert(n < (storage.size << 5));
+		GAL_ASSERT(n < (storage.size << 5));
 		
 		const GalU32 mask = 1 << (n & 31);
 		return (storage.data[n >> 5] & mask) != 0;
@@ -2714,7 +2790,7 @@ struct GalBitVec
 
 	constexpr void SetBit(const size_t n) const
 	{
-		GalAssert(n < (storage.size << 5));
+		GAL_ASSERT(n < (storage.size << 5));
 
 		const GalU32 mask = 1 << (n & 31);
 		storage.data[n >> 5] |= mask;
@@ -2722,7 +2798,7 @@ struct GalBitVec
 
 	constexpr void ClearBit(const size_t n) const
 	{
-		GalAssert(n < (storage.size << 5));
+		GAL_ASSERT(n < (storage.size << 5));
 
 		const GalU32 mask = 1 << (n & 31);
 		storage.data[n >> 5] &= ~mask;
@@ -3389,6 +3465,52 @@ static constexpr const char* GetDefaultCompressedDataBase85()
 	return ProggyCleanTtfCompressedDataBase85;
 }
 
+constexpr int FontAtlasDefaultTexDataW = 108; // Actual texture will be 2 times that + 1 spacing.
+constexpr int FontAtlasDefaultTexDataH = 27;
+static constexpr char FontAtlasDefaultTexDataPixels[FontAtlasDefaultTexDataW * FontAtlasDefaultTexDataH + 1] =
+{
+	"..-         -XXXXXXX-    X    -           X           -XXXXXXX          -          XXXXXXX-     XX          "
+	"..-         -X.....X-   X.X   -          X.X          -X.....X          -          X.....X-    X..X         "
+	"---         -XXX.XXX-  X...X  -         X...X         -X....X           -           X....X-    X..X         "
+	"X           -  X.X  - X.....X -        X.....X        -X...X            -            X...X-    X..X         "
+	"XX          -  X.X  -X.......X-       X.......X       -X..X.X           -           X.X..X-    X..X         "
+	"X.X         -  X.X  -XXXX.XXXX-       XXXX.XXXX       -X.X X.X          -          X.X X.X-    X..XXX       "
+	"X..X        -  X.X  -   X.X   -          X.X          -XX   X.X         -         X.X   XX-    X..X..XXX    "
+	"X...X       -  X.X  -   X.X   -    XX    X.X    XX    -      X.X        -        X.X      -    X..X..X..XX  "
+	"X....X      -  X.X  -   X.X   -   X.X    X.X    X.X   -       X.X       -       X.X       -    X..X..X..X.X "
+	"X.....X     -  X.X  -   X.X   -  X..X    X.X    X..X  -        X.X      -      X.X        -XXX X..X..X..X..X"
+	"X......X    -  X.X  -   X.X   - X...XXXXXX.XXXXXX...X -         X.X   XX-XX   X.X         -X..XX........X..X"
+	"X.......X   -  X.X  -   X.X   -X.....................X-          X.X X.X-X.X X.X          -X...X...........X"
+	"X........X  -  X.X  -   X.X   - X...XXXXXX.XXXXXX...X -           X.X..X-X..X.X           - X..............X"
+	"X.........X -XXX.XXX-   X.X   -  X..X    X.X    X..X  -            X...X-X...X            -  X.............X"
+	"X..........X-X.....X-   X.X   -   X.X    X.X    X.X   -           X....X-X....X           -  X.............X"
+	"X......XXXXX-XXXXXXX-   X.X   -    XX    X.X    XX    -          X.....X-X.....X          -   X............X"
+	"X...X..X    ---------   X.X   -          X.X          -          XXXXXXX-XXXXXXX          -   X...........X "
+	"X..X X..X   -       -XXXX.XXXX-       XXXX.XXXX       -------------------------------------    X..........X "
+	"X.X  X..X   -       -X.......X-       X.......X       -    XX           XX    -           -    X..........X "
+	"XX    X..X  -       - X.....X -        X.....X        -   X.X           X.X   -           -     X........X  "
+	"      X..X          -  X...X  -         X...X         -  X..X           X..X  -           -     X........X  "
+	"       XX           -   X.X   -          X.X          - X...XXXXXXXXXXXXX...X -           -     XXXXXXXXXX  "
+	"------------        -    X    -           X           -X.....................X-           ------------------"
+	"                    ----------------------------------- X...XXXXXXXXXXXXX...X -                             "
+	"                                                      -  X..X           X..X  -                             "
+	"                                                      -   X.X           X.X   -                             "
+	"                                                      -    XX           XX    -                             "
+};
+
+static constexpr GalVec2 FontAtlasDefaultTexCursorData[static_cast<GalGuiMouseCursor>(EnumGalGuiMouseCursor::GALGUI_MOUSE_CURSOR_COUNT)][3] =
+{
+	// pos ============= size ============= offset
+	{{0, 3}, {12, 19}, {0, 0}},			// ARROW
+	{{13, 0}, {7, 16}, {1, 8}},		    // TEXT_INPUT
+	{{31, 0}, {23, 23}, {11, 11}},	    // RESIZE_ALL
+	{{21, 0}, {9, 23}, {4, 11}},	    // RESIZE_HEIGHT
+	{{55, 18}, {23, 9}, {11, 4}},	    // RESIZE_WIDTH
+	{{73, 0}, {17, 17}, {8, 8}},	    // RESIZE_BL(Bottom Left)
+	{{55, 0}, {17, 17}, {8, 8}},	    // RESIZE_BR(Bottom Right)
+	{{91, 0}, {17, 22}, {5, 0}},	    // HAND
+};
+
 struct GalFontAtlas
 {
 	bool locked = false;				
@@ -3415,17 +3537,37 @@ struct GalFontAtlas
 
 	~GalFontAtlas()
 	{
-		GalAssert(!locked && "Cannot modify a locked GalFontAtlas between NewFrame() and EndFrame/Render()!");
+		GAL_ASSERT(!locked && "Cannot modify a locked GalFontAtlas between NewFrame() and EndFrame/Render()!");
 		Clear();
 	}
 
 	// 需要实现在 GalFont 有完整定义之后
 	constexpr GalFont* AddFont(const GalFontConfig* config);
 	constexpr GalFont* AddFontDefault(const GalFontConfig* configTemplate);
-
+	constexpr GalFont* AddFontFromFileTTF(const char* filename, float sizePixels, const GalFontConfig* configTemplate = nullptr, const GalWChar* glyphRanges = nullptr);
+	constexpr GalFont* AddFontFromMemoryTTF(void* fontData, size_t fontSize, float sizePixels, const GalFontConfig* configTemplate = nullptr, const GalWChar* glyphRanges = nullptr);
 	constexpr GalFont* AddFontFromMemoryCompressedTTF(const void* compressedFontData, size_t compressedFontSize, float sizePixels, const GalFontConfig* configTemplate = nullptr, const GalWChar* glyphRanges = nullptr);
 	constexpr GalFont* AddFontFromMemoryCompressedBase85TTF(const char* compressedFontDataBase85, float sizePixels, const GalFontConfig* config = nullptr, const GalWChar* glyphRanges = nullptr);
 
+	constexpr void ClearInputData();
+	constexpr void ClearTexData();
+	constexpr void ClearFonts();
+	constexpr void Clear();
+
+	constexpr bool Build();
+	constexpr void GetTexDataAsAlpha8(unsigned char** outPixels, int* outWidth, int* outHeight, int* outBytesPerPixels = nullptr);// 1 byte per-pixel
+	constexpr void GetTexDataAsRGBA32(unsigned char** outPixels, int* outWidth, int* outHeight, int* outBytesPerPixels = nullptr);// 4 byte per-pixel
+
+	[[nodiscard]] constexpr bool IsBuilt() const
+	{
+		return fonts.Size() > 0 && (texPixelsAlpha8 != nullptr || texPixelsRGBA32 != nullptr);
+	}
+	
+	void SetTexID(const GalTextureID id)
+	{
+		texID = id;
+	}
+	
 	static const GalWChar* GetGlyphRangesDefault()
 	{
 		static const GalWChar Ranges[] =
@@ -3435,7 +3577,6 @@ struct GalFontAtlas
 		};
 		return &Ranges[0];
 	}
-
 	static const GalWChar* GetGlyphRangesChineseFull()
 	{
 		static const GalWChar Ranges[] =
@@ -3450,7 +3591,6 @@ struct GalFontAtlas
 		};
 		return &Ranges[0];
 	}
-
 	static const GalWChar* GetGlyphRangesChineseSimplifiedCommon()
 	{
 		static const short AccumulativeOffsetsFrom0X4E00[] =
@@ -3522,6 +3662,66 @@ struct GalFontAtlas
 		}
 		return &fullRanges[0];
 	}
+
+	constexpr size_t AddCustomRectRegular(const int width, const int height)
+	{
+		GAL_ASSERT(width > 0 && width <= 0xFFFF);
+		GAL_ASSERT(height > 0 && height <= 0xFFFF);
+		const GalFontAtlasCustomRect rect =
+		{
+			static_cast<unsigned short>(width),
+			static_cast<unsigned short>(height)
+		};
+		customRects.PushBack(rect);
+		return customRects.Size() - 1;// Return index
+	}
+	constexpr size_t AddCustomFontGlyph(GalFont* font, const GalWChar id, const int width, const int height, const float advanceX, const GalVec2& offset = { 0.0f, 0.0f })
+	{
+		GAL_ASSERT(font != nullptr);
+		GAL_ASSERT(width > 0 && width <= 0xFFFF);
+		GAL_ASSERT(height > 0 && height <= 0XFFFF);
+		const GalFontAtlasCustomRect rect =
+		{
+			static_cast<unsigned short>(width),
+			static_cast<unsigned short>(height),
+			id,
+			advanceX,
+			offset,
+			font
+		};
+		customRects.PushBack(rect);
+		return customRects.Size() - 1;// Return index
+	}
+	GalFontAtlasCustomRect* GetCustomRectByIndex(const int index)
+	{
+		GAL_ASSERT(index >= 0);
+		return &customRects[index];
+	}
+
+	// [Internal]
+	constexpr void CalcCustomRectUV(const GalFontAtlasCustomRect* rect, GalVec2* outUVMin, GalVec2* outUVMax) const
+	{
+		GAL_ASSERT(texWidth > 0 && texHeight > 0);   // Font atlas needs to be built before we can calculate UV coordinates
+		GAL_ASSERT(rect->IsPacked());				// Make sure the rectangle has been packed
+		*outUVMin = { static_cast<float>(rect->x) * texUVScale.x, static_cast<float>(rect->y) * texUVScale.y };
+		*outUVMax = { static_cast<float>(rect->x + rect->width) * texUVScale.x, static_cast<float>(rect->y + rect->height) * texUVScale.y };
+	}
+	
+	constexpr bool GetMouseCursorTexData(GalGuiMouseCursor cursor, GalVec2* outOffset, GalVec2* outSize, GalVec2 outUVBorder[2], GalVec2 outUVFill[2])
+	{
+		if(cursor <= static_cast<GalGuiMouseCursor>(EnumGalGuiMouseCursor::GALGUI_MOUSE_CURSOR_NONE) || cursor >= static_cast<GalGuiMouseCursor>(EnumGalGuiMouseCursor::GALGUI_MOUSE_CURSOR_COUNT))
+		{
+			return false;
+		}
+		if(flags & static_cast<GalFontAtlasFlags>(EnumGalFontAtlasFlags::GAL_FONT_ATLAS_FLAGS_NO_MOUSE_CURSORS))
+		{
+			return false;
+		}
+
+		GAL_ASSERT(packIDMouseCursors != -1);
+		auto rect = GetCustomRectByIndex(packIDMouseCursors);
+		
+	}
 };
 
 struct GalFont
@@ -3553,9 +3753,9 @@ struct GalFont
 
 constexpr GalFont* GalFontAtlas::AddFont(const GalFontConfig* config)
 {
-	GalAssert(!locked && "Cannot modify a locked GalFontAtlas between NewFrame() and EndFrame/Render()!");
-	GalAssert(config->fontData != nullptr && config->fontDataSize > 0);
-	GalAssert(config->sizePixels > 0.0f);
+	GAL_ASSERT(!locked && "Cannot modify a locked GalFontAtlas between NewFrame() and EndFrame/Render()!");
+	GAL_ASSERT(config->fontData != nullptr && config->fontDataSize > 0);
+	GAL_ASSERT(config->sizePixels > 0.0f);
 
 	if (!config->mergeMode)
 	{
@@ -3563,7 +3763,7 @@ constexpr GalFont* GalFontAtlas::AddFont(const GalFontConfig* config)
 	}
 	else
 	{
-		GalAssert(!fonts.Empty() && "Cannot use mergeMode for the first font");
+		GAL_ASSERT(!fonts.Empty() && "Cannot use mergeMode for the first font");
 	}
 	configData.PushBack(*config);
 	auto& newConfig = configData.Back();
@@ -3607,10 +3807,54 @@ constexpr GalFont* GalFontAtlas::AddFontDefault(const GalFontConfig* configTempl
 	}
 	config.ellipsisChar = 0x0085;
 
-	auto tttCompressedBase85 = GetDefaultCompressedDataBase85();
-	auto glyphRanges = config.glyphRanges != nullptr ? config.glyphRanges : GetGlyphRangesDefault();
-	auto font = AddFontFromMemoryCompressedBase85TTF(tttCompressedBase85, config.sizePixels, &config, glyphRanges);
-	font->
+	const auto ttfCompressedBase85 = GetDefaultCompressedDataBase85();
+	const auto glyphRanges = config.glyphRanges != nullptr ? config.glyphRanges : GetGlyphRangesDefault();
+	const auto font = AddFontFromMemoryCompressedBase85TTF(ttfCompressedBase85, config.sizePixels, &config, glyphRanges);
+	font->displayOffset.y = 1.0f;
+	return font;
+}
+
+constexpr GalFont* GalFontAtlas::AddFontFromFileTTF(
+	const char* filename, const float sizePixels,
+	const GalFontConfig* configTemplate, const GalWChar* glyphRanges
+)
+{
+	GAL_ASSERT(!locked && "Cannot modify a locked GalFontAtlas between NewFrame() and EndFrame/Render()!");
+	size_t dataSize = 0;
+	const auto data = GalFileLoadToMemory(filename, "rb", &dataSize, 0);
+	if(!data)
+	{
+		GAL_ASSERT(0 && "Could not load font file!");
+		return nullptr;
+	}
+	auto config = configTemplate ? *configTemplate : GalFontConfig();
+	if(config.name[0] == '\0')
+	{
+		// Store a short copy of filename into the font name for convenience
+		const char* p;
+		for(p = filename + strlen(filename); p > filename && p[-1] != '/' && p[-1] != '\\'; --p) {}
+		GalFormatString(config.name, GalArraySize(config.name), "%s, %.0fpx", p, sizePixels);
+	}
+	return AddFontFromMemoryTTF(data, dataSize, sizePixels, &config, glyphRanges);
+}
+
+constexpr GalFont* GalFontAtlas::AddFontFromMemoryTTF(
+	void* fontData, const size_t fontSize, const float sizePixels,
+	const GalFontConfig* configTemplate, const GalWChar* glyphRanges
+)
+{
+	GAL_ASSERT(!locked && "Cannot modify a locked GalFontAtlas between NewFrame() and EndFrame/Render()!");
+	auto config = configTemplate ? *configTemplate : GalFontConfig();
+	GAL_ASSERT(config.fontData == nullptr);
+	config.fontData = fontData;
+	config.fontDataSize = fontSize;
+	config.sizePixels = sizePixels;
+	if(glyphRanges)
+	{
+		config.glyphRanges = glyphRanges;
+	}
+
+	return AddFont(&config);
 }
 
 constexpr struct GalFont* GalFontAtlas::AddFontFromMemoryCompressedTTF(
@@ -3670,7 +3914,7 @@ constexpr struct GalFont* GalFontAtlas::AddFontFromMemoryCompressedTTF(
 			static auto match =
 				[&](const unsigned char* data, unsigned int length) -> void
 			{
-				GalAssert(dOut + length <= barrierOutE);
+				GAL_ASSERT(dOut + length <= barrierOutE);
 				if (dOut + length > barrierOutE)
 				{
 					dOut += length;
@@ -3690,7 +3934,7 @@ constexpr struct GalFont* GalFontAtlas::AddFontFromMemoryCompressedTTF(
 			static auto lit =
 				[&](const unsigned char* data, const unsigned int length) -> void
 			{
-				GalAssert(dOut + length <= barrierOutE);
+				GAL_ASSERT(dOut + length <= barrierOutE);
 				if (dOut + length > barrierOutE)
 				{
 					dOut += length;
@@ -3818,7 +4062,7 @@ constexpr struct GalFont* GalFontAtlas::AddFontFromMemoryCompressedTTF(
 			{
 				if(input[0] == 0x05 && input[1] == 0xfa)
 				{
-					GalAssert(dOut == output + len);
+					GAL_ASSERT(dOut == output + len);
 					if(dOut != output + len || adler32(1, output, len) != int4(input, 2))
 					{
 						return 0;
@@ -3826,10 +4070,10 @@ constexpr struct GalFont* GalFontAtlas::AddFontFromMemoryCompressedTTF(
 					return len;
 				}
 				/* NOT REACHED */
-				GalAssert(0);
+				GAL_ASSERT(0);
 				return 0;
 			}
-			GalAssert(dOut <= output + len);
+			GAL_ASSERT(dOut <= output + len);
 			if(dOut > output + len)
 			{
 				return 0;
@@ -3838,12 +4082,15 @@ constexpr struct GalFont* GalFontAtlas::AddFontFromMemoryCompressedTTF(
 	}();
 
 	auto config = configTemplate ? *configTemplate : GalFontConfig();
-	GalAssert(config.fontData == nullptr);
+	GAL_ASSERT(config.fontData == nullptr);
 	config.fontDataOwnedByAtlas = true;
 	return AddFontFromMemoryTTF(bufDecompressedData, bufDecompressedSize, sizePixels, &config, glyphRanges);
 }
 
-constexpr GalFont* GalFontAtlas::AddFontFromMemoryCompressedBase85TTF(const char* compressedFontDataBase85, float sizePixels, const GalFontConfig* config, const GalWChar* glyphRanges)
+constexpr GalFont* GalFontAtlas::AddFontFromMemoryCompressedBase85TTF(
+	const char* compressedFontDataBase85, const float sizePixels, 
+	const GalFontConfig* config, const GalWChar* glyphRanges
+)
 {
 	
 	const auto bufDecompressedSize = (strlen(compressedFontDataBase85) + 4) / 5 * 4;
@@ -3874,11 +4121,85 @@ constexpr GalFont* GalFontAtlas::AddFontFromMemoryCompressedBase85TTF(const char
 			dest += 4;
 		}
 	}();
-	auto font = AddFontFromMemoryCompressedTTF(compressedTtf, bufDecompressedSize, sizePixels, config, glyphRanges);
-	1
-	
+	const auto font = AddFontFromMemoryCompressedTTF(compressedTtf, bufDecompressedSize, sizePixels, config, glyphRanges);
+	GalMemFree(compressedTtf);
+	return font;
 }
 
+constexpr void GalFontAtlas::ClearInputData()
+{
+	GAL_ASSERT(!locked && "Cannot modify a locked GalFontAtlas between NewFrame() and EndFrame/Render()!");
+	for (size_t i = 0; i < configData.Size(); ++i)
+	{
+		if (configData[i].fontData && configData[i].fontDataOwnedByAtlas)
+		{
+			GalMemFree(configData[i].fontData);
+			configData[i].fontData = nullptr;
+		}
+	}
+	for (size_t i = 0; i < fonts.Size(); ++i)
+	{
+		if (fonts[i]->configData >= configData.Begin() && fonts[i]->configData < configData.End())
+		{
+			fonts[i]->configData = nullptr;
+			fonts[i]->configDataCount = 0;
+		}
+	}
+	configData.Clear();
+	customRects.Clear();
+	packIDMouseCursors = -1;
+	packIDLines = -1;
+}
+
+constexpr void GalFontAtlas::ClearTexData()
+{
+	GAL_ASSERT(!locked && "Cannot modify a locked GalFontAtlas between NewFrame() and EndFrame/Render()!");
+	if(texPixelsAlpha8)
+	{
+		GalMemFree(texPixelsAlpha8);
+	}
+	if(texPixelsRGBA32)
+	{
+		GalMemFree(texPixelsRGBA32);
+	}
+	texPixelsAlpha8 = nullptr;
+	texPixelsRGBA32 = nullptr;
+}
+
+constexpr void GalFontAtlas::ClearFonts()
+{
+	GAL_ASSERT(!locked && "Cannot modify a locked GalFontAtlas between NewFrame() and EndFrame/Render()!");
+	for(size_t i = 0; i < fonts.Size(); ++i)
+	{
+		GalDelete(fonts[i]);
+	}
+	fonts.Clear();
+}
+
+constexpr void GalFontAtlas::Clear()
+{
+	ClearInputData();
+	ClearTexData();
+	ClearFonts();
+}
+
+constexpr bool GalFontAtlas::Build()
+{
+	GAL_ASSERT(!locked && "Cannot modify a locked GalFontAtlas between NewFrame() and EndFrame/Render()!");
+
+	// Build
+	GAL_ASSERT(configData.Size() > 0);
+
+	// Init
+	if(packIDMouseCursors < 0)
+	{
+		if(!(flags & static_cast<GalFontAtlasFlags>(EnumGalFontAtlasFlags::GAL_FONT_ATLAS_FLAGS_NO_MOUSE_CURSORS)))
+		{
+			packIDMouseCursors = AddCustomRectRegular()
+		}
+	}
+	
+}
 
 
 struct GalGuiIO
