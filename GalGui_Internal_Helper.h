@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <any>
 #include <variant>
+#include <type_traits>
 
 #include <cassert>
 #include <cfloat>
@@ -886,6 +887,52 @@ enum class EnumGalFontAtlas
 	GALGUI_FONT_ATLAS_NO_MOUSE_CURSORS = 1 << 1,
 	GALGUI_FONT_ATLAS_NO_BACKED_LINES = 1 << 2
 };
+
+/*
+ * 对 enum class 的 operator& operator&= operator| operator|= 运算支持
+ * 如果目标类型不是 enum 则编译期报错
+ * TODO 这会阻止 operator& operator&= operator| operator|= 运算的其他模版
+ */
+template <typename T, typename = typename std::enable_if<std::is_enum<T>::value, T>::type>
+constexpr T operator&(T lhs, T rhs)
+{
+	return static_cast<T>(
+		static_cast<typename std::underlying_type<T>::type>(lhs) &
+		static_cast<typename std::underlying_type<T>::type>(rhs));
+}
+
+template <typename Target, typename T, typename = typename std::enable_if<std::is_enum<T>::value, T>::type>
+constexpr Target operator&(Target lhs, T rhs)
+{
+	return static_cast<Target>(
+		static_cast<typename std::underlying_type<T>::type>(lhs) &
+		static_cast<typename std::underlying_type<T>::type>(rhs));
+}
+
+// 用于 if(flag & enum) 运算
+template <typename Target, typename T, typename = typename std::enable_if<std::is_enum<T>::value, T>::type>
+constexpr Target& operator&=(Target& lhs, T rhs)
+{
+	return lhs = static_cast<Target>(
+		static_cast<typename std::underlying_type<T>::type>(lhs) &
+		static_cast<typename std::underlying_type<T>::type>(rhs));
+}
+
+template <typename T, typename = typename std::enable_if<std::is_enum<T>::value, T>::type>
+constexpr T operator|(T lhs, T rhs)
+{
+	return static_cast<T>(
+		static_cast<typename std::underlying_type<T>::type>(lhs) |
+		static_cast<typename std::underlying_type<T>::type>(rhs));
+}
+
+template <typename Target, typename T, typename = typename std::enable_if<std::is_enum<T>::value, T>::type>
+constexpr Target& operator|=(Target& lhs, T rhs)
+{
+	return lhs = static_cast<Target>(
+		static_cast<typename std::underlying_type<T>::type>(lhs) |
+		static_cast<typename std::underlying_type<T>::type>(rhs));
+}
 
 // 字符解码
 using GalWChar16 = unsigned short;
@@ -3465,6 +3512,8 @@ static constexpr const char* GetDefaultCompressedDataBase85()
 	return ProggyCleanTtfCompressedDataBase85;
 }
 
+// (. = white layer, X = black layer, others are blank)
+// The 2x2 white texels on the top left are the ones we'll use everywhere in GalGui to render filled shapes.
 constexpr int FontAtlasDefaultTexDataW = 108; // Actual texture will be 2 times that + 1 spacing.
 constexpr int FontAtlasDefaultTexDataH = 27;
 static constexpr char FontAtlasDefaultTexDataPixels[FontAtlasDefaultTexDataW * FontAtlasDefaultTexDataH + 1] =
@@ -3713,7 +3762,7 @@ struct GalFontAtlas
 		{
 			return false;
 		}
-		if(flags & static_cast<GalFontAtlasFlags>(EnumGalFontAtlasFlags::GAL_FONT_ATLAS_FLAGS_NO_MOUSE_CURSORS))
+		if(flags & EnumGalFontAtlasFlags::GAL_FONT_ATLAS_FLAGS_NO_MOUSE_CURSORS)
 		{
 			return false;
 		}
@@ -4193,7 +4242,7 @@ constexpr bool GalFontAtlas::Build()
 	// Init
 	if(packIDMouseCursors < 0)
 	{
-		if(!(flags & static_cast<GalFontAtlasFlags>(EnumGalFontAtlasFlags::GAL_FONT_ATLAS_FLAGS_NO_MOUSE_CURSORS)))
+		if(!(flags & EnumGalFontAtlasFlags::GAL_FONT_ATLAS_FLAGS_NO_MOUSE_CURSORS))
 		{
 			packIDMouseCursors = AddCustomRectRegular()
 		}
