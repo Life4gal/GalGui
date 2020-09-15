@@ -11,6 +11,114 @@
 #include <cstddef>
 #include <cstring>
 
+/*
+// 对 enum class 的 operator& operator&= operator| operator|= 运算支持
+// 如果目标类型不是 enum 则编译期报错
+// TODO 这会阻止 operator& operator&= operator| operator|= 运算的其他模版
+template <typename T, typename = std::enable_if_t<std::is_enum_v<T>, T>>
+constexpr T operator&(T lhs, T rhs)
+{
+	return static_cast<T>(
+		static_cast<typename std::underlying_type<T>::type>(lhs)&
+		static_cast<typename std::underlying_type<T>::type>(rhs));
+}
+
+// 用于 if(flag & enum) 运算
+template <typename Target, typename T, typename = std::enable_if_t<std::is_enum_v<T>, T>>
+constexpr Target operator&(Target lhs, T rhs)
+{
+	return static_cast<Target>(
+		static_cast<typename std::underlying_type<T>::type>(lhs)&
+		static_cast<typename std::underlying_type<T>::type>(rhs));
+}
+
+template <typename Target, typename T, typename = std::enable_if_t<std::is_enum_v<T>, T>>
+constexpr Target& operator&=(Target& lhs, T rhs)
+{
+	return lhs = static_cast<Target>(
+		static_cast<typename std::underlying_type<T>::type>(lhs)&
+		static_cast<typename std::underlying_type<T>::type>(rhs));
+}
+
+template <typename T, typename = std::enable_if_t<std::is_enum_v<T>, T>>
+constexpr T operator|(T lhs, T rhs)
+{
+	return static_cast<T>(
+		static_cast<typename std::underlying_type<T>::type>(lhs) |
+		static_cast<typename std::underlying_type<T>::type>(rhs));
+}
+
+template <typename Target, typename T, typename = std::enable_if_t<std::is_enum_v<T>, T>>
+constexpr Target& operator|=(Target& lhs, T rhs)
+{
+	return lhs = static_cast<Target>(
+		static_cast<typename std::underlying_type<T>::type>(lhs) |
+		static_cast<typename std::underlying_type<T>::type>(rhs));
+}
+
+// TODO 经过考虑我们觉得我们无法承受放弃其他支持这些运算的类型的运算而仅仅为了支持Enum的代价
+*/
+
+
+/* EnumType 应该是 Enum 的类型, 例如 enum class Enum : EnumType
+ * 之所以把 EnumType 写成 decltype(EnumType()),把 Enum 写成 decltype(Enum()) 是因为下面这个警告:
+ *		Macro argument should be enclosed in parentheses [bugprone-macro-parentheses]
+ *
+ * inline constexpr Enum operator|(Enum lhs, Enum rhs)				用于 flag = enum1 | enum2 (正常来说 enum1 | enum2 操作不会等于另一个 enum)
+ * inline constexpr Enum operator|(EnumType lhs, Enum rhs)			用于 flag1 = flag2 | enum2 (正常来说 flag | enum 操作不会等于另一个 enum)
+ * inline constexpr Enum operator|(Enum lhs, EnumType rhs)			用于 flag1 = enum2 | flag2 (正常来说 enum | flag 操作不会等于另一个 enum)
+ * inline constexpr EnumType operator|=(EnumType& lhs, Enum rhs)	只允许 flag |= enum, 而不允许反过来
+ * inline constexpr Enum operator&(Enum lhs, Enum rhs)				用于 flag = enum1 & enum2 (正常来说 enum1 & enum2 操作不会等于另一个 enum)
+ * inline constexpr EnumType operator&(EnumType lhs, Enum rhs)		用于 flag1 = flag2 & enum2 (正常来说 flag & enum 操作不会等于另一个 enum)
+ * inline constexpr EnumType operator&(Enum rhs, EnumType lhs)		用于 flag1 = enum2 & flag2 (正常来说 enum & flag 操作不会等于另一个 enum)
+ * inline constexpr EnumType operator&=(EnumType& lhs, Enum rhs)	只允许 flag &= enum, 而不允许反过来
+ *
+ * TODO 需要更多测试
+ */
+// 考虑了很久,我们还是不得不使用 macro 这个坏东西
+#define ENUM_FLAG_OPERATORS(Enum, EnumType) \
+inline constexpr decltype(EnumType()) operator|(Enum lhs, Enum rhs) \
+{ \
+	static_assert(std::is_enum_v<Enum>); \
+	return static_cast<EnumType>(static_cast<typename std::underlying_type_t<decltype(Enum())>>(lhs) | static_cast<typename std::underlying_type_t<decltype(Enum())>>(rhs)); \
+} \
+inline constexpr decltype(EnumType()) operator|(EnumType lhs, Enum rhs) \
+{ \
+	static_assert(std::is_enum_v<Enum>); \
+	return static_cast<EnumType>(lhs | static_cast<EnumType>(rhs)); \
+} \
+inline constexpr decltype(EnumType()) operator|(Enum lhs, EnumType rhs) \
+{ \
+	static_assert(std::is_enum_v<Enum>); \
+	return static_cast<EnumType>(static_cast<EnumType>(lhs) | rhs); \
+} \
+inline constexpr decltype(EnumType()) operator|=(decltype(EnumType())& lhs, Enum rhs) \
+{ \
+	static_assert(std::is_enum_v<Enum>); \
+	return lhs = static_cast<EnumType>(static_cast<EnumType>(lhs) | rhs); \
+}\
+inline constexpr decltype(EnumType()) operator&(Enum lhs, Enum rhs)\
+{\
+	static_assert(std::is_enum_v<Enum>); \
+	return static_cast<EnumType>(static_cast<typename std::underlying_type_t<decltype(Enum())>>(lhs) & static_cast<typename std::underlying_type_t<decltype(Enum())>>(rhs)); \
+} \
+inline constexpr decltype(EnumType()) operator&(EnumType lhs, Enum rhs) \
+{ \
+	static_assert(std::is_enum_v<Enum>); \
+	return static_cast<EnumType>(lhs & static_cast<EnumType>(rhs)); \
+} \
+inline constexpr decltype(EnumType()) operator&(Enum rhs, EnumType lhs) \
+{ \
+	static_assert(std::is_enum_v<Enum>); \
+	return static_cast<EnumType>(static_cast<EnumType>(lhs) & rhs); \
+} \
+inline constexpr decltype(EnumType()) operator&=(decltype(EnumType())& lhs, Enum rhs) \
+{ \
+	static_assert(std::is_enum_v<Enum>); \
+	return lhs = static_cast<EnumType>(static_cast<EnumType>(lhs) & rhs); \
+}
+
+
 using GalGuiCol = int; 
 // Enum: A color identifier for styling
 enum class EnumGalGuiCol : GalGuiCol
@@ -76,6 +184,8 @@ enum class EnumGalGuiCond : GalGuiCond
 	GALGUI_COND_FIRST_USE_EVER = 1 << 2,
 	GALGUI_COND_APPEARING = 1 << 3
 };
+// operator
+ENUM_FLAG_OPERATORS(EnumGalGuiCond, GalGuiCond)
 
 using GalS8 = signed char;
 using GalU8 = unsigned char;
@@ -265,6 +375,8 @@ enum class EnumGalDrawCornerFlags : GalDrawCornerFlags
 	
 	GAL_DRAW_CORNER_FLAGS_ALL = 0XF
 };
+// operator
+ENUM_FLAG_OPERATORS(EnumGalDrawCornerFlags, GalDrawCornerFlags)
 
 using GalDrawListFlags = int;
 // Flags: for GalDrawList
@@ -276,6 +388,8 @@ enum class EnumGalDrawListFlags : GalDrawListFlags
 	GAL_DRAW_LIST_FLAGS_ANTIALIASED_FILL = 1 << 2,
 	GAL_DRAW_LIST_FLAGS_ALLOW_VERTEX_OFFSET = 1 << 3
 };
+// operator
+ENUM_FLAG_OPERATORS(EnumGalDrawListFlags, GalDrawListFlags)
 
 using GalFontAtlasFlags = int;
 // Flags: for GalFontAtlas build
@@ -286,6 +400,8 @@ enum class EnumGalFontAtlasFlags : GalFontAtlasFlags
 	GAL_FONT_ATLAS_FLAGS_NO_MOUSE_CURSORS = 1 << 1,
 	GAL_FONT_ATLAS_FLAGS_NO_BAKED_LINES = 1 << 2
 };
+// operator
+ENUM_FLAG_OPERATORS(EnumGalFontAtlasFlags, GalFontAtlasFlags)
 
 using GalGuiBackendFlags = int;	
 // Flags: for io.BackendFlags
@@ -297,6 +413,8 @@ enum class EnumGalGuiBackendFlags : GalGuiBackendFlags
 	GALGUI_BACKEND_FLAGS_HAS_SET_MOUSE_POS = 1 << 2,
 	GALGUI_BACKEND_FLAGS_RENDERER_HAS_VERTEX_OFFSET = 1 << 3
 };
+// operator
+ENUM_FLAG_OPERATORS(EnumGalGuiBackendFlags, GalGuiBackendFlags)
 
 using GalGuiColorEditFlags = int;
 // Flags: for ColorEdit4(), ColorPicker4() etc.
@@ -350,6 +468,8 @@ enum class EnumGalGuiColorEditFlags : GalGuiColorEditFlags
 		GALGUI_COLOR_EDIT_FLAGS_INPUT_RGB | 
 		GALGUI_COLOR_EDIT_FLAGS_INPUT_HSV
 };
+// operator
+ENUM_FLAG_OPERATORS(EnumGalGuiColorEditFlags, GalGuiColorEditFlags)
 
 using GalGuiConfigFlags = int;
 // Flags: for io.ConfigFlags
@@ -363,6 +483,8 @@ enum class EnumGalGuiConfigFlags : GalGuiConfigFlags
 	GALGUI_CONFIG_FLAGS_NO_MOUSE = 1 << 4,
 	GALGUI_CONFIG_FLAGS_NO_MOUSE_CURSOR_CHANGE = 1 << 5,
 };
+// operator
+ENUM_FLAG_OPERATORS(EnumGalGuiConfigFlags, GalGuiConfigFlags)
 
 using GalGuiComboFlags = int;
 // Flags: for BeginCombo()
@@ -382,6 +504,8 @@ enum class EnumGalGuiComboFlags : GalGuiComboFlags
 		GALGUI_COMBO_FLAGS_HEIGHT_LARGE |
 		GALGUI_COMBO_FLAGS_HEIGHT_LARGEST
 };
+// operator
+ENUM_FLAG_OPERATORS(EnumGalGuiComboFlags, GalGuiComboFlags)
 
 using GalGuiDragDropFlags = int;
 // Flags: for BeginDragDropSource(), AcceptDragDropPayload()
@@ -403,6 +527,8 @@ enum class EnumGalGuiDragDropFlags : GalGuiDragDropFlags
 		GALGUI_DRAG_DROP_FLAGS_ACCEPT_BEFORE_DELIVERY | 
 		GALGUI_DRAG_DROP_FLAGS_ACCEPT_NO_DRAW_DEFAULT_RECT
 };
+// operator
+ENUM_FLAG_OPERATORS(EnumGalGuiDragDropFlags, GalGuiDragDropFlags)
 
 using GalGuiFocusedFlags = int;
 // Flags: for IsWindowFocused()
@@ -416,6 +542,8 @@ enum class EnumGalGuiFocusedFlags : GalGuiFocusedFlags
 		GALGUI_FOCUSED_FLAGS_CHILD_WINDOWS |
 		GALGUI_FOCUSED_FLAGS_ROOT_WINDOW
 };
+// operator
+ENUM_FLAG_OPERATORS(EnumGalGuiFocusedFlags, GalGuiFocusedFlags)
 
 using GalGuiHoveredFlags = int;
 // Flags: for IsItemHovered(), IsWindowHovered() etc.
@@ -438,6 +566,8 @@ enum class EnumGalGuiHoveredFlags : GalGuiHoveredFlags
 		GALGUI_HOVERED_FLAGS_ROOT_WINDOW | 
 		GALGUI_HOVERED_FLAGS_CHILD_WINDOWS 
 };
+// operator
+ENUM_FLAG_OPERATORS(EnumGalGuiHoveredFlags, GalGuiHoveredFlags)
 
 using GalGuiInputTextFlags = int;
 // Flags: for InputText(), InputTextMultiline()
@@ -468,6 +598,8 @@ enum class EnumGalGuiInputTextFlags : GalGuiInputTextFlags
 	GALGUI_INPUT_TEXT_FLAGS_MULTILINE = 1 << 20,
 	GALGUI_INPUT_TEXT_FLAGS_NO_MARK_EDITED = 1 << 21
 };
+// operator
+ENUM_FLAG_OPERATORS(EnumGalGuiInputTextFlags, GalGuiInputTextFlags)
 
 using GalGuiKeyModFlags = int;
 // Flags: for io.keyMods (Ctrl/Shift/Alt/Super)
@@ -479,6 +611,8 @@ enum class EnumGalGuiKeyModFlags : GalGuiKeyModFlags
 	GALGUI_KEY_MOD_FLAGS_ALT = 1 << 2,
 	GALGUI_KEY_MOD_FLAGS_SUPER = 1 << 3
 };
+// operator
+ENUM_FLAG_OPERATORS(EnumGalGuiKeyModFlags, GalGuiKeyModFlags)
 
 using GalGuiPopupFlags = int;
 // Flags: for OpenPopup*(), BeginPopupContext*(), IsPopupOpen()
@@ -498,6 +632,8 @@ enum class EnumGalGuiPopupFlags : GalGuiPopupFlags
 		GALGUI_POPUP_FLAGS_ANY_POPUP_ID |
 		GALGUI_POPUP_FLAGS_ANY_POPUP_LEVEL
 };
+// operator
+ENUM_FLAG_OPERATORS(EnumGalGuiPopupFlags, GalGuiPopupFlags)
 
 using GalGuiSelectableFlags = int;
 // Flags: for Selectable()
@@ -510,6 +646,8 @@ enum class EnumGalGuiSelectableFlags : GalGuiSelectableFlags
 	GALGUI_SELECTABLE_FLAGS_DISABLE = 1 << 3,
 	GALGUI_SELECTABLE_FLAGS_ALLOW_ITEM_OVERLAP = 1 << 4
 };
+// operator
+ENUM_FLAG_OPERATORS(EnumGalGuiSelectableFlags, GalGuiSelectableFlags)
 enum class EnumGalGuiSelectablePrivateFlags : GalGuiSelectableFlags
 {
 	GALGUI_SELECTABLE_PRIVATE_FLAGS_NO_HOLDING_ACTIVE_ID = 1 << 20,
@@ -519,6 +657,8 @@ enum class EnumGalGuiSelectablePrivateFlags : GalGuiSelectableFlags
 	GALGUI_SELECTABLE_PRIVATE_FLAGS_DRAW_HOVERED_WHEN_HELD = 1 << 24,
 	GALGUI_SELECTABLE_PRIVATE_FLAGS_SET_NAV_ID_ON_HOVER = 1 << 25
 };
+// operator
+ENUM_FLAG_OPERATORS(EnumGalGuiSelectablePrivateFlags, GalGuiSelectableFlags)
 
 using GalGuiTabBarFlags = int;
 // Flags: for BeginTabBar()
@@ -538,12 +678,16 @@ enum class EnumGalGuiTabBarFlags : GalGuiTabBarFlags
 		GALGUI_TAB_BAR_FLAGS_FITTING_POLICY_SCROLL,
 	GALGUI_TAB_BAR_FLAGS_FITTING_POLICY_DEFAULT = GALGUI_TAB_BAR_FLAGS_FITTING_POLICY_RESIZE_DOWN
 };
+// operator
+ENUM_FLAG_OPERATORS(EnumGalGuiTabBarFlags, GalGuiTabBarFlags)
 enum class EnumGalGuiTabBarPrivateFlags : GalGuiTabBarFlags
 {
 	GALGUI_TAB_BAR_PRIVATE_FLAGS_DOCK_NODE = 1 << 20,
 	GALGUI_TAB_BAR_PRIVATE_FLAGS_IS_FOCUSED = 1 << 21,
 	GALGUI_TAB_BAR_PRIVATE_FLAGS_SAVE_SETTINGS = 1 << 22
 };
+// operator
+ENUM_FLAG_OPERATORS(EnumGalGuiTabBarPrivateFlags, GalGuiTabBarFlags)
 
 using GalGuiTabItemFlags = int;
 // Flags: for BeginTabItem()
@@ -556,10 +700,14 @@ enum class EnumGalGuiTabItemFlags : GalGuiTabItemFlags
 	GALGUI_TAB_ITEM_FLAGS_NO_PUSH_ID = 1 << 3,
 	GALGUI_TAB_ITEM_FLAGS_NO_TOOLTIP = 1 << 4
 };
+// operator
+ENUM_FLAG_OPERATORS(EnumGalGuiTabItemFlags, GalGuiTabItemFlags)
 enum class EnumGalGuiTabItemPrivateFlags : GalGuiTabItemFlags
 {
 	GALGUI_TAB_ITEM_FLAGS_NO_CLOSE_BUTTON = 1 << 20
 };
+// operator
+ENUM_FLAG_OPERATORS(EnumGalGuiTabItemPrivateFlags, GalGuiTabItemFlags)
 
 using GalGuiTreeNodeFlags = int;
 // Flags: for TreeNode(), TreeNodeEx(), CollapsingHeader()
@@ -586,10 +734,14 @@ enum class EnumGalGuiTreeNodeFlags : GalGuiTreeNodeFlags
 		GALGUI_TREE_NODE_FLAGS_NO_TREE_PUSH_ON_OPEN |
 		GALGUI_TREE_NODE_FLAGS_NO_AUTO_OPEN_ON_LOG
 };
+// operator
+ENUM_FLAG_OPERATORS(EnumGalGuiTreeNodeFlags, GalGuiTreeNodeFlags)
 enum class EnumGalGuiTreeNodePrivateFlags : GalGuiTreeNodeFlags
 {
 	GALGUI_TREE_NODE_PRIVATE_FLAGS_CLIP_LABEL_FOR_TRAILING_BUTTON = 1 << 20
 };
+// operator
+ENUM_FLAG_OPERATORS(EnumGalGuiTreeNodePrivateFlags, GalGuiTreeNodeFlags)
 
 using GalGuiWindowFlags = int;
 // Flags: for Begin(), BeginChild()
@@ -637,6 +789,8 @@ enum class EnumGalGuiWindowFlags : GalGuiWindowFlags
 	GALGUI_WINDOW_FLAGS_MODAL = 1 << 27,
 	GALGUI_WINDOW_FLAGS_CHILD_MENU = 1 << 28
 };
+// operator
+ENUM_FLAG_OPERATORS(EnumGalGuiWindowFlags, GalGuiWindowFlags)
 
 using GalGuiLayoutType = int;
 enum class EnumGalGuiLayoutType : GalGuiLayoutType
@@ -684,6 +838,8 @@ enum class EnumGalGuiButtonFlags : GalGuiButtonFlags
 		GALGUI_BUTTON_FLAGS_PRESSED_ON_DRAG_DROP_HOLD,
 	GALGUI_BUTTON_FLAGS_PRESSED_ON_DEFAULT = GALGUI_BUTTON_FLAGS_PRESSED_ON_CLICK_RELEASE
 };
+// operator
+ENUM_FLAG_OPERATORS(EnumGalGuiButtonFlags, GalGuiButtonFlags)
 
 using GalGuiColumnsFlags = int;
 enum class EnumGalGuiColumnsFlags : GalGuiColumnsFlags
@@ -695,6 +851,8 @@ enum class EnumGalGuiColumnsFlags : GalGuiColumnsFlags
 	GALGUI_COLUMNS_FLAGS_NO_FORCE_WITHIN_WINDOW = 1 << 3,
 	GALGUI_COLUMNS_FLAGS_GROW_PARENT_CONTENT_SIZE = 1 << 4
 };
+// operator
+ENUM_FLAG_OPERATORS(EnumGalGuiColumnsFlags, GalGuiColumnsFlags)
 
 using GalGuiDragFlags = int;
 enum class EnumGalGuiDragFlags : GalGuiDragFlags
@@ -702,6 +860,8 @@ enum class EnumGalGuiDragFlags : GalGuiDragFlags
 	GALGUI_DRAG_FLAGS_NONE = 0,
 	GALGUI_DRAG_FLAGS_VERTICAL = 1 << 0
 };
+// operator
+ENUM_FLAG_OPERATORS(EnumGalGuiDragFlags, GalGuiDragFlags)
 
 using GalGuiItemFlags = int;
 // Transient per-window flags, reset at the beginning of the frame. For child window, inherited from parent on first Begin().
@@ -718,6 +878,8 @@ enum class EnumGalGuiItemFlags : GalGuiItemFlags
 	GALGUI_ITEM_FLAGS_READONLY = 1 << 7,
 	GALGUI_ITEM_FLAGS_DEFAULT = 0
 };
+// operator
+ENUM_FLAG_OPERATORS(EnumGalGuiItemFlags, GalGuiItemFlags)
 
 using GalGuiItemStatusFlags = int;
 // Storage for LastItem data
@@ -732,6 +894,8 @@ enum class EnumGalGuiItemStatusFlags : GalGuiItemStatusFlags
 	GALGUI_ITEM_STATUS_FLAGS_HAS_DEACTIVATED = 1 << 5,
 	GALGUI_ITEM_STATUS_FLAGS_DEACTIVATED = 1 << 6
 };
+// operator
+ENUM_FLAG_OPERATORS(EnumGalGuiItemStatusFlags, GalGuiItemStatusFlags)
 
 using GalGuiNavHighlightFlags = int;
 enum class EnumGalGuiNavHighlightFlags : GalGuiNavHighlightFlags
@@ -742,6 +906,8 @@ enum class EnumGalGuiNavHighlightFlags : GalGuiNavHighlightFlags
 	GALGUI_NAV_HIGHLIGHT_FLAGS_ALWAYS_DRAW = 1 << 2,
 	GALGUI_NAV_HIGHLIGHT_FLAGS_NO_ROUNDING = 1 << 3
 };
+// operator
+ENUM_FLAG_OPERATORS(EnumGalGuiNavHighlightFlags, GalGuiNavHighlightFlags)
 
 using GalGuiNavDirSourceFlags = int;
 enum class EnumGalGuiNavDirSourceFlags : GalGuiNavDirSourceFlags
@@ -751,6 +917,8 @@ enum class EnumGalGuiNavDirSourceFlags : GalGuiNavDirSourceFlags
 	GALGUI_NAV_DIR_SOURCE_FLAGS_PAD_DPAD = 1 << 1,
 	GALGUI_NAV_DIR_SOURCE_FLAGS_PAD_LSTICK = 1 << 2
 };
+// operator
+ENUM_FLAG_OPERATORS(EnumGalGuiNavDirSourceFlags, GalGuiNavDirSourceFlags)
 
 using GalGuiNavMoveFlags = int;
 enum class EnumGalGuiNavMoveFlags : GalGuiNavMoveFlags
@@ -764,6 +932,8 @@ enum class EnumGalGuiNavMoveFlags : GalGuiNavMoveFlags
 	GALGUI_NAV_MOVE_FLAGS_ALSO_SCORE_VISIBLE_SET = 1 << 5,
 	GALGUI_NAV_MOVE_FLAGS_SCROLL_TO_EDGE = 1 << 6
 };
+// operator
+ENUM_FLAG_OPERATORS(EnumGalGuiNavMoveFlags, GalGuiNavMoveFlags)
 
 using GalGuiNextItemDataFlags = int;
 enum class EnumGalGuiNextItemDataFlags : GalGuiNextItemDataFlags
@@ -772,6 +942,8 @@ enum class EnumGalGuiNextItemDataFlags : GalGuiNextItemDataFlags
 	GALGUI_NEXT_ITEM_DATA_FLAGS_HAS_WIDTH = 1 << 0,
 	GALGUI_NEXT_ITEM_DATA_FLAGS_HAS_OPEN = 1 << 1
 };
+// operator
+ENUM_FLAG_OPERATORS(EnumGalGuiNextItemDataFlags, GalGuiNextItemDataFlags)
 
 using GalGuiNextWindowDataFlags = int;
 enum class EnumGalGuiNextWindowDataFlags : GalGuiNextWindowDataFlags
@@ -786,6 +958,8 @@ enum class EnumGalGuiNextWindowDataFlags : GalGuiNextWindowDataFlags
 	GALGUI_NEXT_WINDOW_DATA_FLAGS_HAS_BACKGROUND_ALPHA = 1 << 6,
 	GALGUI_NEXT_WINDOW_DATA_FLAGS_HAS_SCROLL = 1 << 7
 };
+// operator
+ENUM_FLAG_OPERATORS(EnumGalGuiNextWindowDataFlags, GalGuiNextWindowDataFlags)
 
 using GalGuiSeparatorFlags = int;
 enum class EnumGalGuiSeparatorFlags : GalGuiSeparatorFlags
@@ -795,6 +969,8 @@ enum class EnumGalGuiSeparatorFlags : GalGuiSeparatorFlags
 	GALGUI_SEPARATOR_FLAGS_VERTICAL = 1 << 1,
 	GALGUI_SEPARATOR_FLAGS_SPAN_ALL_COLUMNS = 1 << 2
 };
+// operator
+ENUM_FLAG_OPERATORS(EnumGalGuiSeparatorFlags, GalGuiSeparatorFlags)
 
 using GalGuiSliderFlags = int;
 enum class EnumGalGuiSliderFlags : GalGuiSliderFlags
@@ -802,6 +978,8 @@ enum class EnumGalGuiSliderFlags : GalGuiSliderFlags
 	GALGUI_SLIDER_FLAGS_NONE = 0,
 	GALGUI_SLIDER_FLAGS_VERTICAL = 1 << 0
 };
+// operator
+ENUM_FLAG_OPERATORS(EnumGalGuiSliderFlags, GalGuiSliderFlags)
 
 using GalGuiTextFlags = int;
 enum class EnumGalGuiTextFlags : GalGuiTextFlags
@@ -809,6 +987,8 @@ enum class EnumGalGuiTextFlags : GalGuiTextFlags
 	GALGUI_TEXT_FLAGS_NONE = 0,
 	GALGUI_TEXT_FLAGS_NO_WIDTH_FOR_LARGE_CLIPPED_TEXT = 1 << 0
 };
+// operator
+ENUM_FLAG_OPERATORS(EnumGalGuiTextFlags, GalGuiTextFlags)
 
 using GalGuiTooltipFlags = int;
 enum class EnumGalGuiTooltipFlags : GalGuiTooltipFlags
@@ -816,6 +996,8 @@ enum class EnumGalGuiTooltipFlags : GalGuiTooltipFlags
 	GALGUI_TOOLTIP_FLAGS_NONE = 0,
 	GALGUI_TOOLTIP_FLAGS_OVERRIDE_PREVIOUS_TOOLTIP = 1 << 0
 };
+// operator
+ENUM_FLAG_OPERATORS(EnumGalGuiTooltipFlags, GalGuiTooltipFlags)
 
 enum class EnumGalGuiLogType
 {
@@ -880,59 +1062,15 @@ enum class EnumGalGuiPopupPositionPolicy
 	GALGUI_POPUP_POSITION_POLICY_COMBOBOX
 };
 
-enum class EnumGalFontAtlas
+enum class EnumGalFontAtlas : int
 {
 	GALGUI_FONT_ATLAS_NONE = 0,
 	GALGUI_FONT_ATLAS_NO_POWER_OF_TWO_HEIGHT = 1 << 0,
 	GALGUI_FONT_ATLAS_NO_MOUSE_CURSORS = 1 << 1,
 	GALGUI_FONT_ATLAS_NO_BACKED_LINES = 1 << 2
 };
-
-/*
- * 对 enum class 的 operator& operator&= operator| operator|= 运算支持
- * 如果目标类型不是 enum 则编译期报错
- * TODO 这会阻止 operator& operator&= operator| operator|= 运算的其他模版
- */
-template <typename T, typename = typename std::enable_if<std::is_enum<T>::value, T>::type>
-constexpr T operator&(T lhs, T rhs)
-{
-	return static_cast<T>(
-		static_cast<typename std::underlying_type<T>::type>(lhs) &
-		static_cast<typename std::underlying_type<T>::type>(rhs));
-}
-
-template <typename Target, typename T, typename = typename std::enable_if<std::is_enum<T>::value, T>::type>
-constexpr Target operator&(Target lhs, T rhs)
-{
-	return static_cast<Target>(
-		static_cast<typename std::underlying_type<T>::type>(lhs) &
-		static_cast<typename std::underlying_type<T>::type>(rhs));
-}
-
-// 用于 if(flag & enum) 运算
-template <typename Target, typename T, typename = typename std::enable_if<std::is_enum<T>::value, T>::type>
-constexpr Target& operator&=(Target& lhs, T rhs)
-{
-	return lhs = static_cast<Target>(
-		static_cast<typename std::underlying_type<T>::type>(lhs) &
-		static_cast<typename std::underlying_type<T>::type>(rhs));
-}
-
-template <typename T, typename = typename std::enable_if<std::is_enum<T>::value, T>::type>
-constexpr T operator|(T lhs, T rhs)
-{
-	return static_cast<T>(
-		static_cast<typename std::underlying_type<T>::type>(lhs) |
-		static_cast<typename std::underlying_type<T>::type>(rhs));
-}
-
-template <typename Target, typename T, typename = typename std::enable_if<std::is_enum<T>::value, T>::type>
-constexpr Target& operator|=(Target& lhs, T rhs)
-{
-	return lhs = static_cast<Target>(
-		static_cast<typename std::underlying_type<T>::type>(lhs) |
-		static_cast<typename std::underlying_type<T>::type>(rhs));
-}
+// operator
+ENUM_FLAG_OPERATORS(EnumGalFontAtlas, int)
 
 // 字符解码
 using GalWChar16 = unsigned short;

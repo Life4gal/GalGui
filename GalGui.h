@@ -33,7 +33,6 @@ struct GalGuiTextFilter;				// 用于解析文本并进行过滤
 enum class EnumGalGuiCol;
 enum class EnumGalGuiDir;
 
-
 namespace GalGui
 {
     // 上下文的创建与访问
