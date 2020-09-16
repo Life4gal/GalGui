@@ -12,70 +12,132 @@
 #include <cstring>
 
 /*
-// 对 enum class 的 operator& operator&= operator| operator|= 运算支持
-// 如果目标类型不是 enum 则编译期报错
-// TODO 这会阻止 operator& operator&= operator| operator|= 运算的其他模版
-template <typename T, typename = std::enable_if_t<std::is_enum_v<T>, T>>
-constexpr T operator&(T lhs, T rhs)
+	用于 bitset 的枚举类型运算符支持
+	对于非枚举类型支持类型编译时报错
+	TODO 对于我们不想要存在这些操作的枚举类型我们没有控制方法
+
+	例如
+		using EnumType = int;
+		enum class Enum : EnumType{...}
+		允许使用 EnumType flag = Enum::Enum1 | Enum::Enum2 这样的操作
+		甚至支持 int/unsigned int/double flag = Enum::Enum1 | Enum::Enum2 这样的操作
+
+		TODO 对于下面这种存在转换的类型我们没办法限制(一般来说不存在吧...)
+		struct Dummy
+		{
+			int a;
+			Dummy(const int i = 0) : a(i) {}
+
+			constexpr operator int() const
+			{
+				return a;
+			}
+
+			constexpr operator EnumType() const
+			{
+				return static_cast<EnumType>(a);
+			}
+		};
+
+	用于 flag = enum1 | enum2 (正常来说 enum1 | enum2 操作不会等于另一个 enum)
+	template <typename Enum, typename = std::enable_if_t<std::is_enum_v<Enum>, Enum>, typename EnumType = std::underlying_type_t<Enum>>
+	constexpr EnumType operator|(Enum lhs, Enum rhs)
+
+	非枚举类型编译报错(但是编码期间不会报错),用于 flag1 = flag2 | enum2 (正常来说 flag | enum 操作不会等于另一个 enum)
+	template <typename Enum, typename = std::enable_if_t<std::is_enum_v<Enum>, Enum>, typename EnumType = std::underlying_type_t<Enum>>
+	constexpr EnumType operator|(EnumType lhs, Enum rhs)
+
+	用于 flag1 = enum2 | flag2 (正常来说 enum | flag 操作不会等于另一个 enum)
+	template <typename Enum, typename = std::enable_if_t<std::is_enum_v<Enum>, Enum>, typename EnumType = std::underlying_type_t<Enum>>
+	constexpr EnumType operator|(Enum lhs, EnumType rhs)
+
+	只允许 flag |= enum, 而不允许反过来
+	template <typename Enum, typename = std::enable_if_t<std::is_enum_v<Enum>, Enum>, typename EnumType = std::underlying_type_t<Enum>>
+	constexpr EnumType operator|=(EnumType& lhs, Enum rhs)
+
+	用于 flag = enum1 & enum2 (正常来说 enum1 & enum2 操作不会等于另一个 enum)
+	template <typename Enum, typename = std::enable_if_t<std::is_enum_v<Enum>, Enum>, typename EnumType = std::underlying_type_t<Enum>>
+	constexpr EnumType operator&(Enum lhs, Enum rhs)
+
+	用于 flag1 = flag2 & enum2 (正常来说 flag & enum 操作不会等于另一个 enum)
+	template <typename Enum, typename = std::enable_if_t<std::is_enum_v<Enum>, Enum>, typename EnumType = std::underlying_type_t<Enum>>
+	constexpr EnumType operator&(EnumType lhs, Enum rhs)
+
+	用于 flag1 = enum2 & flag2 (正常来说 enum & flag 操作不会等于另一个 enum)
+	template <typename Enum, typename = std::enable_if_t<std::is_enum_v<Enum>, Enum>, typename EnumType = std::underlying_type_t<Enum>>
+	constexpr EnumType operator&(Enum lhs, EnumType rhs)
+
+	只允许 flag &= enum, 而不允许反过来
+	template <typename Enum, typename = std::enable_if_t<std::is_enum_v<Enum>, Enum>, typename EnumType = std::underlying_type_t<Enum>>
+	constexpr EnumType operator&=(EnumType& lhs, Enum rhs)
+
+	TODO 需要更多测试
+ */
+
+
+ // 用于 flag = enum1 | enum2 (正常来说 enum1 | enum2 操作不会等于另一个 enum)
+template <typename Enum, typename = std::enable_if_t<std::is_enum_v<Enum>, Enum>, typename EnumType = std::underlying_type_t<Enum>>
+constexpr EnumType operator|(Enum lhs, Enum rhs)
 {
-	return static_cast<T>(
-		static_cast<typename std::underlying_type<T>::type>(lhs)&
-		static_cast<typename std::underlying_type<T>::type>(rhs));
+	return static_cast<EnumType>(static_cast<EnumType>(lhs) | static_cast<EnumType>(rhs));
 }
 
-// 用于 if(flag & enum) 运算
-template <typename Target, typename T, typename = std::enable_if_t<std::is_enum_v<T>, T>>
-constexpr Target operator&(Target lhs, T rhs)
+// 用于 flag1 = flag2 | enum2 (正常来说 flag | enum 操作不会等于另一个 enum)
+template <typename Enum, typename = std::enable_if_t<std::is_enum_v<Enum>, Enum>, typename EnumType = std::underlying_type_t<Enum>>
+constexpr EnumType operator|(EnumType lhs, Enum rhs)
 {
-	return static_cast<Target>(
-		static_cast<typename std::underlying_type<T>::type>(lhs)&
-		static_cast<typename std::underlying_type<T>::type>(rhs));
+	return static_cast<EnumType>(lhs | static_cast<EnumType>(rhs));
 }
 
-template <typename Target, typename T, typename = std::enable_if_t<std::is_enum_v<T>, T>>
-constexpr Target& operator&=(Target& lhs, T rhs)
+// 用于 flag1 = enum2 | flag2 (正常来说 enum | flag 操作不会等于另一个 enum)
+template <typename Enum, typename = std::enable_if_t<std::is_enum_v<Enum>, Enum>, typename EnumType = std::underlying_type_t<Enum>>
+constexpr EnumType operator|(Enum lhs, EnumType rhs)
 {
-	return lhs = static_cast<Target>(
-		static_cast<typename std::underlying_type<T>::type>(lhs)&
-		static_cast<typename std::underlying_type<T>::type>(rhs));
+	return static_cast<EnumType>(static_cast<EnumType>(lhs) | rhs);
 }
 
-template <typename T, typename = std::enable_if_t<std::is_enum_v<T>, T>>
-constexpr T operator|(T lhs, T rhs)
+// 只允许 flag |= enum, 而不允许反过来
+template <typename Enum, typename = std::enable_if_t<std::is_enum_v<Enum>, Enum>, typename EnumType = std::underlying_type_t<Enum>>
+constexpr EnumType operator|=(EnumType& lhs, Enum rhs)
 {
-	return static_cast<T>(
-		static_cast<typename std::underlying_type<T>::type>(lhs) |
-		static_cast<typename std::underlying_type<T>::type>(rhs));
+	return lhs = static_cast<EnumType>(lhs | static_cast<EnumType>(rhs));
 }
 
-template <typename Target, typename T, typename = std::enable_if_t<std::is_enum_v<T>, T>>
-constexpr Target& operator|=(Target& lhs, T rhs)
+// 用于 flag = enum1 & enum2 (正常来说 enum1 & enum2 操作不会等于另一个 enum)
+template <typename Enum, typename = std::enable_if_t<std::is_enum_v<Enum>, Enum>, typename EnumType = std::underlying_type_t<Enum>>
+constexpr EnumType operator&(Enum lhs, Enum rhs)
 {
-	return lhs = static_cast<Target>(
-		static_cast<typename std::underlying_type<T>::type>(lhs) |
-		static_cast<typename std::underlying_type<T>::type>(rhs));
+	return static_cast<EnumType>(static_cast<EnumType>(lhs)& static_cast<EnumType>(rhs));
 }
 
-// TODO 经过考虑我们觉得我们无法承受放弃其他支持这些运算的类型的运算而仅仅为了支持Enum的代价
-*/
+// 用于 flag1 = flag2 & enum2 (正常来说 flag & enum 操作不会等于另一个 enum)
+template <typename Enum, typename = std::enable_if_t<std::is_enum_v<Enum>, Enum>, typename EnumType = std::underlying_type_t<Enum>>
+constexpr EnumType operator&(EnumType lhs, Enum rhs)
+{
+	return static_cast<EnumType>(lhs & static_cast<EnumType>(rhs));
+}
 
+// 用于 flag1 = enum2 & flag2 (正常来说 enum & flag 操作不会等于另一个 enum)
+template <typename Enum, typename = std::enable_if_t<std::is_enum_v<Enum>, Enum>, typename EnumType = std::underlying_type_t<Enum>>
+constexpr EnumType operator&(Enum lhs, EnumType rhs)
+{
+	return static_cast<EnumType>(static_cast<EnumType>(lhs)& rhs);
+}
+
+// 只允许 flag &= enum, 而不允许反过来
+template <typename Enum, typename = std::enable_if_t<std::is_enum_v<Enum>, Enum>, typename EnumType = std::underlying_type_t<Enum>>
+constexpr EnumType operator&=(EnumType& lhs, Enum rhs)
+{
+	return lhs = static_cast<EnumType>(lhs & static_cast<EnumType>(rhs));
+}
 
 /* EnumType 应该是 Enum 的类型, 例如 enum class Enum : EnumType
  * 之所以把 EnumType 写成 decltype(EnumType()),把 Enum 写成 decltype(Enum()) 是因为下面这个警告:
  *		Macro argument should be enclosed in parentheses [bugprone-macro-parentheses]
  *
- * inline constexpr Enum operator|(Enum lhs, Enum rhs)				用于 flag = enum1 | enum2 (正常来说 enum1 | enum2 操作不会等于另一个 enum)
- * inline constexpr Enum operator|(EnumType lhs, Enum rhs)			用于 flag1 = flag2 | enum2 (正常来说 flag | enum 操作不会等于另一个 enum)
- * inline constexpr Enum operator|(Enum lhs, EnumType rhs)			用于 flag1 = enum2 | flag2 (正常来说 enum | flag 操作不会等于另一个 enum)
- * inline constexpr EnumType operator|=(EnumType& lhs, Enum rhs)	只允许 flag |= enum, 而不允许反过来
- * inline constexpr Enum operator&(Enum lhs, Enum rhs)				用于 flag = enum1 & enum2 (正常来说 enum1 & enum2 操作不会等于另一个 enum)
- * inline constexpr EnumType operator&(EnumType lhs, Enum rhs)		用于 flag1 = flag2 & enum2 (正常来说 flag & enum 操作不会等于另一个 enum)
- * inline constexpr EnumType operator&(Enum rhs, EnumType lhs)		用于 flag1 = enum2 & flag2 (正常来说 enum & flag 操作不会等于另一个 enum)
- * inline constexpr EnumType operator&=(EnumType& lhs, Enum rhs)	只允许 flag &= enum, 而不允许反过来
- *
- * TODO 需要更多测试
+ * 如果不想让所有枚举类型都支持这些操作的话就只能用宏定义了
  */
-// 考虑了很久,我们还是不得不使用 macro 这个坏东西
+#ifdef USE_ENUM_FLAG_OPERATORS
 #define ENUM_FLAG_OPERATORS(Enum, EnumType) \
 inline constexpr decltype(EnumType()) operator|(Enum lhs, Enum rhs) \
 { \
@@ -117,7 +179,9 @@ inline constexpr decltype(EnumType()) operator&=(decltype(EnumType())& lhs, Enum
 	static_assert(std::is_enum_v<Enum>); \
 	return lhs = static_cast<EnumType>(static_cast<EnumType>(lhs) & rhs); \
 }
-
+#else
+#define ENUM_FLAG_OPERATORS(Enum, EnumType)
+#endif
 
 using GalGuiCol = int; 
 // Enum: A color identifier for styling
