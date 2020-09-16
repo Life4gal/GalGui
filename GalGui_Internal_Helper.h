@@ -21,6 +21,7 @@
 		enum class Enum : EnumType{...}
 		允许使用 EnumType flag = Enum::Enum1 | Enum::Enum2 这样的操作
 		甚至支持 int/unsigned int/double flag = Enum::Enum1 | Enum::Enum2 这样的操作
+		但是不允许 EnumType flag = Enum::Enum | NotEnumTypeType 或 EnumType flag = NotEnumTypeType | Enum::Enum
 
 		TODO 对于下面这种存在转换的类型我们没办法限制(一般来说不存在吧...)
 		struct Dummy
@@ -39,97 +40,139 @@
 			}
 		};
 
-	用于 flag = enum1 | enum2 (正常来说 enum1 | enum2 操作不会等于另一个 enum)
-	template <typename Enum, typename = std::enable_if_t<std::is_enum_v<Enum>, Enum>, typename EnumType = std::underlying_type_t<Enum>>
-	constexpr EnumType operator|(Enum lhs, Enum rhs)
+		======================
+		使用
+			typename = std::enable_if_t<std::is_enum_v<Enum>>,
+			typename = std::enable_if_t<std::is_same_v<EnumType, std::underlying_type_t<Enum>>>
+		而不是
+			typename = std::enable_if_t<std::is_enum_v<Enum> && std::is_same_v<EnumType, std::underlying_type_t<Enum>>>
+		以避免二义性,因为对于 EnumType operator|(EnumType lhs, Enum rhs)(或EnumType operator&(EnumType lhs, Enum rhs))
+		这种操作其实是可以解析到EnumType operator|(Enum lhs, EnumType rhs)(或EnumType operator&(Enum lhs, EnumType rhs))的,
+		这应该(可能)算SFINAE(Substitution Failure Is Not An Error 替换失败并非错误)
 
-	非枚举类型编译报错(但是编码期间不会报错),用于 flag1 = flag2 | enum2 (正常来说 flag | enum 操作不会等于另一个 enum)
-	template <typename Enum, typename = std::enable_if_t<std::is_enum_v<Enum>, Enum>, typename EnumType = std::underlying_type_t<Enum>>
-	constexpr EnumType operator|(EnumType lhs, Enum rhs)
+		使用 typename EnumType = std::underlying_type_t<Enum> 是因为对于 enum1 | enum2 或 enum1 & enum2 的操作我们无法指定 EnumType 的类型
 
-	用于 flag1 = enum2 | flag2 (正常来说 enum | flag 操作不会等于另一个 enum)
-	template <typename Enum, typename = std::enable_if_t<std::is_enum_v<Enum>, Enum>, typename EnumType = std::underlying_type_t<Enum>>
-	constexpr EnumType operator|(Enum lhs, EnumType rhs)
-
-	只允许 flag |= enum, 而不允许反过来
-	template <typename Enum, typename = std::enable_if_t<std::is_enum_v<Enum>, Enum>, typename EnumType = std::underlying_type_t<Enum>>
-	constexpr EnumType operator|=(EnumType& lhs, Enum rhs)
-
-	用于 flag = enum1 & enum2 (正常来说 enum1 & enum2 操作不会等于另一个 enum)
-	template <typename Enum, typename = std::enable_if_t<std::is_enum_v<Enum>, Enum>, typename EnumType = std::underlying_type_t<Enum>>
-	constexpr EnumType operator&(Enum lhs, Enum rhs)
-
-	用于 flag1 = flag2 & enum2 (正常来说 flag & enum 操作不会等于另一个 enum)
-	template <typename Enum, typename = std::enable_if_t<std::is_enum_v<Enum>, Enum>, typename EnumType = std::underlying_type_t<Enum>>
-	constexpr EnumType operator&(EnumType lhs, Enum rhs)
-
-	用于 flag1 = enum2 & flag2 (正常来说 enum & flag 操作不会等于另一个 enum)
-	template <typename Enum, typename = std::enable_if_t<std::is_enum_v<Enum>, Enum>, typename EnumType = std::underlying_type_t<Enum>>
-	constexpr EnumType operator&(Enum lhs, EnumType rhs)
-
-	只允许 flag &= enum, 而不允许反过来
-	template <typename Enum, typename = std::enable_if_t<std::is_enum_v<Enum>, Enum>, typename EnumType = std::underlying_type_t<Enum>>
-	constexpr EnumType operator&=(EnumType& lhs, Enum rhs)
+		上面这一段注释是用于解释下面这写操作符这么写的原因
+		但其实我们没有任何理由不选择更下面一些的那些被注释的操作符代码
+		=======================
 
 	TODO 需要更多测试
  */
 
-
  // 用于 flag = enum1 | enum2 (正常来说 enum1 | enum2 操作不会等于另一个 enum)
-template <typename Enum, typename = std::enable_if_t<std::is_enum_v<Enum>, Enum>, typename EnumType = std::underlying_type_t<Enum>>
+template <typename Enum, typename EnumType = std::underlying_type_t<Enum>, typename = std::enable_if_t<std::is_enum_v<Enum>>, typename = std::enable_if_t<std::is_same_v<EnumType, std::underlying_type_t<Enum>>>>
 constexpr EnumType operator|(Enum lhs, Enum rhs)
 {
 	return static_cast<EnumType>(static_cast<EnumType>(lhs) | static_cast<EnumType>(rhs));
 }
 
 // 用于 flag1 = flag2 | enum2 (正常来说 flag | enum 操作不会等于另一个 enum)
-template <typename Enum, typename = std::enable_if_t<std::is_enum_v<Enum>, Enum>, typename EnumType = std::underlying_type_t<Enum>>
+template <typename Enum, typename EnumType, typename = std::enable_if_t<std::is_enum_v<Enum>>, typename = std::enable_if_t<std::is_same_v<EnumType, std::underlying_type_t<Enum>>>>
 constexpr EnumType operator|(EnumType lhs, Enum rhs)
 {
 	return static_cast<EnumType>(lhs | static_cast<EnumType>(rhs));
 }
 
 // 用于 flag1 = enum2 | flag2 (正常来说 enum | flag 操作不会等于另一个 enum)
-template <typename Enum, typename = std::enable_if_t<std::is_enum_v<Enum>, Enum>, typename EnumType = std::underlying_type_t<Enum>>
+template <typename Enum, typename EnumType, typename = std::enable_if_t<std::is_enum_v<Enum>>, typename = std::enable_if_t<std::is_same_v<EnumType, std::underlying_type_t<Enum>>>>
 constexpr EnumType operator|(Enum lhs, EnumType rhs)
 {
 	return static_cast<EnumType>(static_cast<EnumType>(lhs) | rhs);
 }
 
 // 只允许 flag |= enum, 而不允许反过来
-template <typename Enum, typename = std::enable_if_t<std::is_enum_v<Enum>, Enum>, typename EnumType = std::underlying_type_t<Enum>>
+template <typename Enum, typename EnumType, typename = std::enable_if_t<std::is_enum_v<Enum>>, typename = std::enable_if_t<std::is_same_v<EnumType, std::underlying_type_t<Enum>>>>
 constexpr EnumType operator|=(EnumType& lhs, Enum rhs)
 {
 	return lhs = static_cast<EnumType>(lhs | static_cast<EnumType>(rhs));
 }
 
 // 用于 flag = enum1 & enum2 (正常来说 enum1 & enum2 操作不会等于另一个 enum)
-template <typename Enum, typename = std::enable_if_t<std::is_enum_v<Enum>, Enum>, typename EnumType = std::underlying_type_t<Enum>>
+template <typename Enum, typename EnumType = std::underlying_type_t<Enum>, typename = std::enable_if_t<std::is_enum_v<Enum>>, typename = std::enable_if_t<std::is_same_v<EnumType, std::underlying_type_t<Enum>>>>
 constexpr EnumType operator&(Enum lhs, Enum rhs)
 {
 	return static_cast<EnumType>(static_cast<EnumType>(lhs)& static_cast<EnumType>(rhs));
 }
 
 // 用于 flag1 = flag2 & enum2 (正常来说 flag & enum 操作不会等于另一个 enum)
-template <typename Enum, typename = std::enable_if_t<std::is_enum_v<Enum>, Enum>, typename EnumType = std::underlying_type_t<Enum>>
+template <typename EnumType, typename Enum, typename = std::enable_if_t<std::is_enum_v<Enum>>, typename = std::enable_if_t<std::is_same_v<EnumType, std::underlying_type_t<Enum>>>>
 constexpr EnumType operator&(EnumType lhs, Enum rhs)
 {
 	return static_cast<EnumType>(lhs & static_cast<EnumType>(rhs));
 }
 
 // 用于 flag1 = enum2 & flag2 (正常来说 enum & flag 操作不会等于另一个 enum)
-template <typename Enum, typename = std::enable_if_t<std::is_enum_v<Enum>, Enum>, typename EnumType = std::underlying_type_t<Enum>>
+template <typename Enum, typename EnumType, typename = std::enable_if_t<std::is_enum_v<Enum>>, typename = std::enable_if_t<std::is_same_v<EnumType, std::underlying_type_t<Enum>>>>
 constexpr EnumType operator&(Enum lhs, EnumType rhs)
 {
 	return static_cast<EnumType>(static_cast<EnumType>(lhs)& rhs);
 }
 
 // 只允许 flag &= enum, 而不允许反过来
-template <typename Enum, typename = std::enable_if_t<std::is_enum_v<Enum>, Enum>, typename EnumType = std::underlying_type_t<Enum>>
+template <typename EnumType, typename Enum, typename = std::enable_if_t<std::is_enum_v<Enum>>, typename = std::enable_if_t<std::is_same_v<EnumType, std::underlying_type_t<Enum>>>>
 constexpr EnumType operator&=(EnumType& lhs, Enum rhs)
 {
 	return lhs = static_cast<EnumType>(lhs & static_cast<EnumType>(rhs));
 }
+
+/*
+ * // TODO 或许我们应该找出一个使用上面而不是这下面的代码的理由
+ // 用于 flag = enum1 | enum2 (正常来说 enum1 | enum2 操作不会等于另一个 enum)
+template <typename Enum, typename = std::enable_if_t<std::is_enum_v<Enum>>, typename EnumType = std::underlying_type_t<Enum>>
+constexpr EnumType operator|(Enum lhs, Enum rhs)
+{
+	return static_cast<EnumType>(static_cast<EnumType>(lhs) | static_cast<EnumType>(rhs));
+}
+
+// 用于 flag1 = flag2 | enum2 (正常来说 flag | enum 操作不会等于另一个 enum)
+template <typename Enum, typename = std::enable_if_t<std::is_enum_v<Enum>>, typename EnumType = std::underlying_type_t<Enum>>
+constexpr EnumType operator|(EnumType lhs, Enum rhs)
+{
+	return static_cast<EnumType>(lhs | static_cast<EnumType>(rhs));
+}
+
+// 用于 flag1 = enum2 | flag2 (正常来说 enum | flag 操作不会等于另一个 enum)
+template <typename Enum, typename = std::enable_if_t<std::is_enum_v<Enum>>, typename EnumType = std::underlying_type_t<Enum>>
+constexpr EnumType operator|(Enum lhs, EnumType rhs)
+{
+	return static_cast<EnumType>(static_cast<EnumType>(lhs) | rhs);
+}
+
+// 只允许 flag |= enum, 而不允许反过来
+template <typename Enum, typename = std::enable_if_t<std::is_enum_v<Enum>>, typename EnumType = std::underlying_type_t<Enum>>
+constexpr EnumType operator|=(EnumType& lhs, Enum rhs)
+{
+	return lhs = static_cast<EnumType>(lhs | static_cast<EnumType>(rhs));
+}
+
+// 用于 flag = enum1 & enum2 (正常来说 enum1 & enum2 操作不会等于另一个 enum)
+template <typename Enum, typename = std::enable_if_t<std::is_enum_v<Enum>>, typename EnumType = std::underlying_type_t<Enum>>
+constexpr EnumType operator&(Enum lhs, Enum rhs)
+{
+	return static_cast<EnumType>(static_cast<EnumType>(lhs)& static_cast<EnumType>(rhs));
+}
+
+// 用于 flag1 = flag2 & enum2 (正常来说 flag & enum 操作不会等于另一个 enum)
+template <typename Enum, typename = std::enable_if_t<std::is_enum_v<Enum>>, typename EnumType = std::underlying_type_t<Enum>>
+constexpr EnumType operator&(EnumType lhs, Enum rhs)
+{
+	return static_cast<EnumType>(lhs & static_cast<EnumType>(rhs));
+}
+
+// 用于 flag1 = enum2 & flag2 (正常来说 enum & flag 操作不会等于另一个 enum)
+template <typename Enum, typename = std::enable_if_t<std::is_enum_v<Enum>>, typename EnumType = std::underlying_type_t<Enum>>
+constexpr EnumType operator&(Enum lhs, EnumType rhs)
+{
+	return static_cast<EnumType>(static_cast<EnumType>(lhs)& rhs);
+}
+
+// 只允许 flag &= enum, 而不允许反过来
+template <typename Enum, typename = std::enable_if_t<std::is_enum_v<Enum>>, typename EnumType = std::underlying_type_t<Enum>>
+constexpr EnumType operator&=(EnumType& lhs, Enum rhs)
+{
+	return lhs = static_cast<EnumType>(lhs & static_cast<EnumType>(rhs));
+}
+*/
 
 /* EnumType 应该是 Enum 的类型, 例如 enum class Enum : EnumType
  * 之所以把 EnumType 写成 decltype(EnumType()),把 Enum 写成 decltype(Enum()) 是因为下面这个警告:
@@ -137,7 +180,7 @@ constexpr EnumType operator&=(EnumType& lhs, Enum rhs)
  *
  * 如果不想让所有枚举类型都支持这些操作的话就只能用宏定义了
  */
-#ifdef USE_ENUM_FLAG_OPERATORS
+#ifdef USE_MACRO_ENUM_FLAG_OPERATORS
 #define ENUM_FLAG_OPERATORS(Enum, EnumType) \
 inline constexpr decltype(EnumType()) operator|(Enum lhs, Enum rhs) \
 { \
