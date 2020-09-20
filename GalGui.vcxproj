@@ -21,6 +21,7 @@
   <ItemGroup>
     <ClCompile Include="GalGui.cpp" />
     <ClCompile Include="GalGui_Draw.cpp" />
+    <ClCompile Include="GalGui_Internal_TrueType.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="GalGui.h" />

@@ -11,6 +11,8 @@
 #include <cstddef>
 #include <cstring>
 
+#include "GalGui_Internal_TrueType.h"
+
 /*
 	用于 bitset 的枚举类型运算符支持
 	对于非枚举类型支持类型编译时报错
@@ -293,15 +295,6 @@ enum class EnumGalGuiCond : GalGuiCond
 };
 // operator
 ENUM_FLAG_OPERATORS(EnumGalGuiCond, GalGuiCond)
-
-using GalS8 = signed char;
-using GalU8 = unsigned char;
-using GalS16 = signed short;
-using GalU16 = unsigned short;
-using GalS32 = signed int;
-using GalU32 = unsigned int;
-using GalS64 = signed   __int64;
-using GalU64 = unsigned __int64;
 
 using GalGuiDataType = int;
 // Enum: A primary data type
@@ -1179,6 +1172,15 @@ enum class EnumGalFontAtlas : int
 // operator
 ENUM_FLAG_OPERATORS(EnumGalFontAtlas, int)
 
+using GalS8 = signed char;
+using GalU8 = unsigned char;
+using GalS16 = signed short;
+using GalU16 = unsigned short;
+using GalS32 = signed int;
+using GalU32 = unsigned int;
+using GalS64 = signed   __int64;
+using GalU64 = unsigned __int64;
+
 // 字符解码
 using GalWChar16 = unsigned short;
 using GalWChar32 = unsigned int;
@@ -1361,8 +1363,8 @@ inline void* GalFileLoadToMemory(const char* filename, const char* mode, size_t*
 
 constexpr auto GalUnicodeCodePointInvalid = 0xFFFD;
 constexpr auto GalUnicodeCodePointMax = 0xFFFF;
-constexpr auto GalDrawListTexLinesWidthMax = 63;
 
+constexpr auto GalDrawListTexLinesWidthMax = 63;
 
 
 
@@ -4152,7 +4154,7 @@ constexpr GalFont* GalFontAtlas::AddFontFromMemoryTTF(
 }
 
 constexpr struct GalFont* GalFontAtlas::AddFontFromMemoryCompressedTTF(
-	const void* compressedFontData, size_t compressedFontSize, float sizePixels, 
+	const void* compressedFontData, size_t compressedFontSize, const float sizePixels, 
 	const GalFontConfig* configTemplate, const GalWChar* glyphRanges
 )
 {
@@ -4202,7 +4204,7 @@ constexpr struct GalFont* GalFontAtlas::AddFontFromMemoryCompressedTTF(
 		auto dOut = output;
 		input += 16;
 
-		auto decompressToken =
+		const auto decompressToken =
 			[&](const unsigned char* in) -> const unsigned char*
 		{
 			static auto match =
@@ -4301,7 +4303,7 @@ constexpr struct GalFont* GalFontAtlas::AddFontFromMemoryCompressedTTF(
 			return in;
 		};
 
-		auto adler32 =
+		const auto adler32 =
 			[](const unsigned int adler, unsigned char* buffer, unsigned int bufLen) -> unsigned int
 		{
 			const unsigned long adlerMod = 65521;
@@ -4386,15 +4388,14 @@ constexpr GalFont* GalFontAtlas::AddFontFromMemoryCompressedBase85TTF(
 	const GalFontConfig* config, const GalWChar* glyphRanges
 )
 {
-	
 	const auto bufDecompressedSize = (strlen(compressedFontDataBase85) + 4) / 5 * 4;
 	auto compressedTtf = GalMemAlloc(bufDecompressedSize);
-	[&]()
+	[&]
 	{
 		auto src = reinterpret_cast<const unsigned char*>(compressedFontDataBase85);
 		auto dest = static_cast<unsigned char*>(compressedTtf);
 
-		auto decode85Byte = [](const unsigned char c) -> unsigned int
+		const auto decode85Byte = [](const unsigned char c) -> unsigned int
 		{
 			return c >= '\\' ? c - 36 : c - 35;
 		};
@@ -4485,14 +4486,44 @@ constexpr bool GalFontAtlas::Build()
 	GAL_ASSERT(configData.Size() > 0);
 
 	// Init
+	// Register texture region for mouse cursors or standard white pixels
 	if(packIDMouseCursors < 0)
 	{
 		if(!(flags & EnumGalFontAtlasFlags::GAL_FONT_ATLAS_FLAGS_NO_MOUSE_CURSORS))
 		{
-			packIDMouseCursors = AddCustomRectRegular()
+			packIDMouseCursors = AddCustomRectRegular(FontAtlasDefaultTexDataW * 2 + 1, FontAtlasDefaultTexDataH);
+		}
+		else
+		{
+			packIDMouseCursors = AddCustomRectRegular(2, 2);
 		}
 	}
+	// Register texture region for thick lines
+	// The +2 here is to give space for the end caps, whilst height +1 is to accommodate the fact we have a zero-width row
+	if(packIDLines < 0)
+	{
+		if(!(flags & EnumGalFontAtlasFlags::GAL_FONT_ATLAS_FLAGS_NO_BAKED_LINES))
+		{
+			packIDLines = AddCustomRectRegular(GalDrawListTexLinesWidthMax + 2, GalDrawListTexLinesWidthMax + 1);
+		}
+	}
+
+	// Clear atlas
+	texID = nullptr;
+	texWidth = 0;
+	texHeight = 0;
+	texUVScale = { 0.0f, 0.0f };
+	texUVWhitePixel = { 0.0f, 0.0f };
+	ClearTexData();
 	
+	// Temporary storage for building
+	// Temporary data for one source font (multiple source fonts can be merged into one destination GalFont)
+	struct GalFontBuildSrcData
+	{
+		
+	};
+	
+	GalVector<GalFontB>
 }
 
 

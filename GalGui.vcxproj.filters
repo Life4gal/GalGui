@@ -17,6 +17,9 @@
     <ClCompile Include="GalGui_Draw.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="GalGui_Internal_TrueType.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="GalGui.h">
