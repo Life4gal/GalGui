@@ -298,7 +298,6 @@ namespace
 		{
 			out[i] = CffInt(&operands);
 		}
-
 	}
 
 	constexpr int CffIndexCount(GalttBuffer* buffer)
@@ -420,15 +419,16 @@ namespace
 	constexpr GalttBuffer GetSubrs(GalttBuffer cff, GalttBuffer fontDict)
 	{
 		GalttU32 subrs = 0;
-		GalttU32 privateLoc[2] = { 0, 0 };
+		GalttU32 privateLoc[2]{};// = { 0, 0 }; // 这里初始化了会出现 unreachable code 
 		DictGetInt(&fontDict, 18, 2, privateLoc);
-		if (privateLoc[1] != 0 || privateLoc[0] != 0)
+		if (!privateLoc[1] || !privateLoc[0])
 		{
 			return BufferNew(nullptr, 0);
 		}
+		
 		auto dict = BufferRange(&cff, privateLoc[1], privateLoc[0]);
 		DictGetInt(&dict, 19, 1, &subrs);
-		if(!subrs)
+		if (!subrs)
 		{
 			return BufferNew(nullptr, 0);
 		}
