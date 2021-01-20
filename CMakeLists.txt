@@ -3,4 +3,4 @@ project(GalGui)
 
 set(CMAKE_CXX_STANDARD 17)
 
-add_executable(GalGui main.cpp)
+add_executable(GalGui main.cpp GalGui.h)
