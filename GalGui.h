@@ -1,25 +1,12 @@
 #pragma once
 
-#define GAL_USE_CXX_FUNCTIONAL
-#define GAL_USE_CXX_NUMERIC
-
-#ifdef GAL_USE_CXX_CLIB
-#include <cstring>
-#include <cstdio>
-#include <cstdlib>
-#else
-#include <string.h>
-#include <stdio.h>
-#include <stdlib.h>
-#endif
-
-#ifdef GAL_USE_CXX_FUNCTIONAL
 #include <functional>
-#endif
-
-#ifdef GAL_USE_CXX_NUMERIC
 #include <numeric>
-#endif
+#include <optional>
+#include <variant>
+#include <array>
+
+#include <cstring>
 
 // to-do
 #define GalAssert(condition)
@@ -58,20 +45,12 @@ namespace Gal {
             }
         }
 
-    #ifdef GAL_USE_CXX_NUMERIC
         template<typename T, typename = std::enable_if_t<std::numeric_limits<T>::is_integer>>
         constexpr decltype(auto) abs(const T& n)
         {
             auto bit_length = sizeof(T) * 8;
             return (n ^ (n >> (bit_length - 1))) - (n >> (bit_length - 1));
         }
-    #else
-        template<typename T>
-        constexpr decltype(auto) abs(const T& n)
-        {
-            return ::abs(n);
-        }
-    #endif
 
         constexpr unsigned build_argb(unsigned alpha, unsigned red, unsigned green, unsigned blue) {
             return (alpha << 24) | (red << 16) | (green << 8) | (blue << 0);
@@ -106,35 +85,13 @@ namespace Gal {
         }
 
         int build_bitmap(const char* file_name, unsigned width, unsigned height, unsigned char* data);
+
+        template<typename... Args> struct overloaded : Args... { using Args::operator()...; };
+        template<typename... Args> overloaded(Args...) -> overloaded<Args...>;
     }
 
     namespace detail
     {
-        struct time_t
-        {
-            unsigned short year;
-            unsigned short month;
-            unsigned short day;
-            unsigned short hour;
-            unsigned short minute;
-            unsigned short second;
-        };
-
-        class CoreQueue
-        {
-        public:
-            CoreQueue();
-            int read(void* buffer, size_t length);
-            int write(void* buffer, size_t length);
-
-        private:
-            unsigned char m_buffer[QueueBufferMaxLength];
-            size_t m_head;
-            size_t m_tail;
-            void* m_read_semaphore;
-            void* m_write_mutex;
-        };
-
         class CoreRect
         {
         public:
@@ -189,6 +146,15 @@ namespace Gal {
             int m_bottom;
        };
 
+       enum COLOR_BYTE_TYPE
+       {
+           COLOR_BITS_16 = 2,
+           COLOR_BITS_32 = 4
+       };
+
+       using B16ByteType = unsigned short;
+       using B32ByteType = unsigned int;
+
        class CoreTheme
        {
            enum FONT_TYPE
@@ -216,10 +182,11 @@ namespace Gal {
 
            struct bitmap_info
            {
-               unsigned short width;
-               unsigned short height;
-               unsigned short color_bits;//support 16 bits only
-               const unsigned short* pixel_color_array;
+               //support 16 bits only
+               B16ByteType width;
+               B16ByteType height;
+               B16ByteType color_bits;
+               const B16ByteType* pixel_color_array;
            };
 
            struct font_info
@@ -300,66 +267,54 @@ namespace Gal {
            }
 
        private:
-           static const font_info* s_font_map[FONT_MAX];
-           static const bitmap_info* s_bitmap_map[BITMAP_MAX];
-           static unsigned int s_color_map[COLOR_MAX];
-       };
-
-       class CoreLayer
-       {
-       public:
-           CoreLayer() : framebuffer(nullptr), rect(CoreRect()) {};
-           void* framebuffer;
-           CoreRect rect;//framebuffer area
+           static std::array<const font_info*, FONT_MAX> s_font_map;
+           static std::array<const bitmap_info*, BITMAP_MAX> s_bitmap_map;
+           static std::array<unsigned int, COLOR_MAX> s_color_map;
        };
 
        class CoreSurface {
            enum Z_ORDER_LEVEL {
-               Z_ORDER_LEVEL_0,//lowest graphic level
-               Z_ORDER_LEVEL_1,//middle graphic level
-               Z_ORDER_LEVEL_2,//highest graphic level
+               Z_ORDER_LEVEL_LOWEST,
+               Z_ORDER_LEVEL_MIDDLE,
+               Z_ORDER_LEVEL_HIGHEST,
                Z_ORDER_LEVEL_MAX
            };
 
-           enum COLOR_BYTE
-           {
-               BITS_16 = 2,
-               BITS_32 = 4
-           };
+           template<COLOR_BYTE_TYPE Bytes>
+           using ColorByteType = std::conditional_t<Bytes == COLOR_BITS_16, B16ByteType, B32ByteType>;
+           using B16ColorByteType = ColorByteType<COLOR_BITS_16>;
+           using B32ColorByteType = ColorByteType<COLOR_BITS_32>;
+           using FramebufferType = std::variant<B16ColorByteType*, B32ColorByteType*, std::nullptr_t>;
 
            class CoreDisplay {
                struct external_gfx_operator {
-#ifdef GAL_USE_CXX_FUNCTIONAL
                    std::function<void(int, int, unsigned int)> draw_pixel;
                    std::function<void(int, int, int, int, unsigned int)> fill_rect;
-#else
-                   void (*draw_pixel)(int x, int y, unsigned int rgb);
-                   void (*fill_rect)(int x0, int y0, int x1, int y1, unsigned int rgb);
-#endif
                };
+
+               friend class CoreSurface;
 
            public:
                CoreDisplay(
-                       void *physical_framebuffer,
+                       FramebufferType* physical_framebuffer,
                        int display_width,
                        int display_height,
                        int suerface_width,
                        int surface_height,
-                       unsigned int color_bytes,
                        int surface_count,
                        external_gfx_operator *gfx_operator = nullptr);//multiple surface or surface_no_fb
 
                CoreDisplay(
-                       void *physical_framebuffer,
+                       FramebufferType* physical_framebuffer,
                        int display_width,
                        int display_height,
-                       CoreSurface *surface);//single custom surface
+                       CoreSurface* surface);//single custom surface
 
-               CoreSurface *alloc_surface(
+               CoreSurface* alloc_surface(
                        Z_ORDER_LEVEL maz_z_order,
                        CoreRect layer_rect = CoreRect());//for multiple surfaces
 
-               int swipe_surface(CoreSurface *surface1, CoreSurface *surface2, int x0, int x1, int y0, int y1, int offset);
+               int swipe_surface(CoreSurface* surface1, CoreSurface* surface2, int x0, int x1, int y0, int y1, int offset);
 
                [[nodiscard]] int get_width() const {
                    return m_width;
@@ -369,7 +324,7 @@ namespace Gal {
                    return m_height;
                }
 
-               void *get_updated_framebuffer(int *width, int *height, bool force_update = false) {
+               FramebufferType get_updated_framebuffer(int *width, int *height, bool force_update = false) {
                    if (width && height) {
                        *width = get_width();
                        *height = get_height();
@@ -385,19 +340,19 @@ namespace Gal {
                }
 
                int snap_shot(const char *file_name) {
-                   if (!m_physical_framebuffer || (m_color_bytes != BITS_16 && m_color_bytes != BITS_32)) {
+                   if (std::holds_alternative<std::nullptr_t>(m_physical_framebuffer)) {
                        return -1;
                    }
 
                    auto width = get_width();
                    auto height = get_height();
-                   if (m_color_bytes == BITS_16) {
+                   if (std::holds_alternative<B16ColorByteType*>(m_physical_framebuffer)) {
                        //16 bits framebuffer
-                       return utility::build_bitmap(file_name, width, height, static_cast<unsigned char *>(m_physical_framebuffer));
+                       return utility::build_bitmap(file_name, width, height, reinterpret_cast<unsigned char *>(std::get<B16ColorByteType*>(m_physical_framebuffer)));
                    } else {
                        //32 bits framebuffer
-                       auto p_bitmap565_data = new unsigned short[width * height];
-                       auto p_raw_data = static_cast<unsigned int *>(m_physical_framebuffer);
+                       auto p_bitmap565_data = new B16ColorByteType[width * height];
+                       auto p_raw_data = std::get<B32ColorByteType*>(m_physical_framebuffer);
                        for (auto i = 0; i < width * height; ++i) {
                            p_bitmap565_data[i] = utility::rgb_convert_32_to_16(*p_raw_data++);
                        }
@@ -410,31 +365,43 @@ namespace Gal {
            private:
                int m_width;      //in pixels
                int m_height;     //in pixels
-               COLOR_BYTE m_color_bytes;//16 bits, 32 bits only
-               void *m_physical_framebuffer;
+               FramebufferType m_physical_framebuffer;
                int m_physical_read_index;
                int m_physical_write_index;
-               CoreSurface *m_surface_group[SurfaceCountMax];
+               std::array<CoreSurface*, SurfaceCountMax> m_surface_group;
                int m_surface_count;
                int m_surface_index;
            };
 
+           class CoreLayer
+           {
+           public:
+               CoreLayer() : framebuffer(nullptr), rect(CoreRect()) {};
+               FramebufferType framebuffer;
+               CoreRect rect;//framebuffer area
+           };
+
        public:
            CoreSurface(
-                   unsigned int width,
-                   unsigned int height,
-                   COLOR_BYTE color_bytes,
-                   Z_ORDER_LEVEL max_z_order = Z_ORDER_LEVEL_0,
+                   int width,
+                   int height,
+                   COLOR_BYTE_TYPE color_bytes,
+                   Z_ORDER_LEVEL max_z_order = Z_ORDER_LEVEL_LOWEST,
                    CoreRect overlapped_rect = CoreRect())
                : m_width(width),
                  m_height(height),
-                 m_color_bytes(color_bytes),
+                 m_is_active(false),
+                 m_max_z_order(max_z_order),
                  m_framebuffer(nullptr),
-                 m_top_z_order(Z_ORDER_LEVEL_0),
+                 m_top_z_order(Z_ORDER_LEVEL_LOWEST),
                  m_physical_framebuffer(nullptr),
                  m_physical_write_index(nullptr),
                  m_display(nullptr) {
-               (overlapped_rect == CoreRect()) ? 1 : 0;
+               (overlapped_rect == CoreRect())
+                       ?
+                       set_surface(max_z_order, CoreRect(0, 0, width - 1, height - 1, 0), color_bytes)
+                       :
+                       set_surface(max_z_order, overlapped_rect, color_bytes);
            }
 
            [[nodiscard]] unsigned int get_width() const {
@@ -452,15 +419,16 @@ namespace Gal {
                }
 
                auto index = y * m_width + x;
-               void *buffers[] = {m_layers[z_order].framebuffer, m_framebuffer, m_physical_framebuffer};
+               FramebufferType buffers[3] = {m_layers[z_order].framebuffer, m_framebuffer, m_physical_framebuffer};
 
-               for (auto buffer : buffers) {
-                   if (buffer) {
+               for(auto& buffer : buffers)
+               {
+                   if (!std::holds_alternative<std::nullptr_t>(buffer)) {
                        return get_rgb_from_buffer(buffer, index);
                    }
                }
 
-               return 0;
+               return static_cast<unsigned int>(-1);
            }
 
            virtual void draw_pixel(int x, int y, unsigned int rgb, unsigned int z_order) {
@@ -483,7 +451,7 @@ namespace Gal {
                    auto buffer = layer.framebuffer;
                    auto index = layer_rect.distance_of_left(x) + layer_rect.distance_of_top(y) * layer_rect.get_width();
 
-                   rite_rgb_to_buffer(buffer, index, rgb);
+                   write_rgb_to_buffer(buffer, index, rgb);
                }
 
                if (z_order == m_top_z_order) {
@@ -602,7 +570,7 @@ namespace Gal {
                {
                    GalAssert(false);
                }
-               if(!m_is_active || m_physical_framebuffer == nullptr || m_framebuffer == nullptr)
+               if(!m_is_active || std::holds_alternative<std::nullptr_t>(m_physical_framebuffer) || std::holds_alternative<std::nullptr_t>(m_framebuffer))
                {
                    return false;
                }
@@ -613,11 +581,30 @@ namespace Gal {
                right = (right >= display_width) ? (display_width - 1) : right;
                top = (top >= display_height) ? (display_height - 1) : top;
                bottom = (bottom >= display_height) ? (display_height - 1) : bottom;
+
+               char* source = nullptr;
+               char* dest = nullptr;
+               COLOR_BYTE_TYPE bytes;
+
+               if(std::holds_alternative<B16ColorByteType*>(m_framebuffer))
+               {
+                   bytes = COLOR_BITS_16;
+                   source = reinterpret_cast<char*>(std::get<B16ColorByteType*>(m_framebuffer));
+                   dest = reinterpret_cast<char*>(std::get<B16ColorByteType*>(m_physical_framebuffer));
+               }
+               else
+               {
+                   bytes = COLOR_BITS_32;
+                   source = reinterpret_cast<char*>(std::get<B32ColorByteType*>(m_framebuffer));
+                   dest = reinterpret_cast<char*>(std::get<B32ColorByteType*>(m_physical_framebuffer));
+               }
+
                for(auto y = top; y < bottom; ++y)
                {
-                   auto source = static_cast<char*>(m_framebuffer) + (y * m_width + left) * m_color_bytes;
-                   auto dest = static_cast<char*>(m_physical_framebuffer) + (y * display_width + left) * m_color_bytes;
-                   memcpy(dest, source, (right - left) * m_color_bytes);
+                   source += (y * m_width + left) * bytes;
+                   dest += (y * display_width + left) * bytes;
+
+                   std::memcpy(dest, source, (right - left) * bytes);
                }
                ++*m_physical_write_index;
                return true;
@@ -640,7 +627,7 @@ namespace Gal {
 
            void show_layer(CoreRect& rect, unsigned int z_order)
            {
-               GalAssert(z_order >= Z_ORDER_LEVEL_0 && z_order < Z_ORDER_LEVEL_MAX);
+               GalAssert(z_order >= Z_ORDER_LEVEL_LOWEST && z_order < Z_ORDER_LEVEL_MAX);
                auto layer = m_layers[z_order];
                auto layer_rect = layer.rect;
                GalAssert(rect.m_left >= layer_rect.m_left && rect.m_right <= layer_rect.m_right &&
@@ -660,14 +647,15 @@ namespace Gal {
        protected:
            virtual void draw_pixel_on_framebuffer(int x, int y, unsigned int rgb)
            {
-               if(m_framebuffer)
+               if(!std::holds_alternative<std::nullptr_t>(m_framebuffer))
                {
                    write_rgb_to_buffer(m_framebuffer, y * m_width + x, rgb);
                }
                if(m_is_active && (x < m_display->get_width()) && (y < m_display->get_height()))
                {
-                   write_rgb_to_buffer(m_framebuffer, y * m_display->get_width() + x, rgb);
+                   write_rgb_to_buffer(m_physical_framebuffer, y * m_display->get_width() + x, rgb);
                }
+               ++*m_physical_write_index;
            }
            virtual void fill_rect_on_framebuffer(int x0, int y0, int x1, int y1, unsigned int rgb)
            {
@@ -678,77 +666,144 @@ namespace Gal {
                {
                    auto framebuffer_index = y0 * m_width + x0;
                    auto physical_framebuffer_index = y0 * display_width + x0;
-                   unsigned int* framebuffer4 = nullptr;
-                   unsigned int* physical_framebuffer4 = nullptr;
-                   unsigned short* framebuffer2 = nullptr;
-                   unsigned short* physical_framebuffer2 = nullptr;
-                   if(m_color_bytes == BITS_32)
+                   void* framebuffer = nullptr;
+                   void* physical_framebuffer = nullptr;
+                   COLOR_BYTE_TYPE bytes;
+                   bool is_framebuffer_null = false;
+
+                   if(std::holds_alternative<std::nullptr_t>(m_framebuffer))
                    {
-                       framebuffer4 = m_framebuffer ? &static_cast<unsigned int*>(m_framebuffer)[framebuffer_index] : nullptr;
-                       physical_framebuffer4 = &static_cast<unsigned int*>(m_physical_framebuffer)[physical_framebuffer_index];
+                       is_framebuffer_null = true;
+                   }
+
+                   if(std::holds_alternative<B32ColorByteType*>(m_physical_framebuffer))
+                   {
+                       bytes = COLOR_BITS_32;
                    }
                    else
                    {
-                       framebuffer2 = m_framebuffer ? &static_cast<unsigned short*>(m_framebuffer)[framebuffer_index] : nullptr;
-                       physical_framebuffer2 = &static_cast<unsigned short*>(m_physical_framebuffer)[physical_framebuffer_index];
+                       bytes = COLOR_BITS_16;
+                   }
+
+                   if(bytes == COLOR_BITS_16)
+                   {
+                       if(!is_framebuffer_null)
+                       {
+                           framebuffer = &std::get<B16ColorByteType*>(m_framebuffer)[framebuffer_index];
+                       }
+                       physical_framebuffer = &std::get<B16ColorByteType*>(m_physical_framebuffer)[physical_framebuffer_index];
                        rgb = utility::rgb_convert_32_to_16(rgb);
                    }
-                   ++*m_physical_write_index;
-                   for(auto x = x0; x <= x1; ++x)
+                   else
                    {
-                       if(framebuffer2 != nullptr)
+                       if(!is_framebuffer_null)
                        {
-                           *framebuffer2++ = rgb;
+                           framebuffer = &std::get<B32ColorByteType*>(m_framebuffer)[framebuffer_index];
                        }
-                       if(framebuffer4 != nullptr)
-                       {
-                           *framebuffer4++ = rgb;
-                       }
+                       physical_framebuffer = &std::get<B32ColorByteType*>(m_physical_framebuffer)[physical_framebuffer_index];
+                   }
 
-                       if(m_is_active && (x < display_width) && (y0 < display_height))
+                   ++*m_physical_write_index;
+
+                   for(auto x = x0, offset = 0; x <= x1; ++x, ++offset)
+                   {
+                       if(bytes == COLOR_BITS_16)
                        {
-                           if(physical_framebuffer2 != nullptr)
+                           if(!is_framebuffer_null)
                            {
-                               *physical_framebuffer2++ = rgb;
+                               *(static_cast<B16ColorByteType*>(framebuffer) + offset) = rgb;
                            }
-                           if(physical_framebuffer4 != nullptr)
+                           if(m_is_active && (x < display_width) && (y0 < display_height))
                            {
-                               *physical_framebuffer4++ = rgb;
+                               *(static_cast<B16ColorByteType*>(physical_framebuffer) + offset) = rgb;
+                           }
+                       }
+                       else
+                       {
+                           if(!is_framebuffer_null)
+                           {
+                               *(static_cast<B32ColorByteType*>(framebuffer) + offset) = rgb;
+                           }
+                           if(m_is_active && (x < display_width) && (y0 < display_height))
+                           {
+                               *(static_cast<B32ColorByteType*>(physical_framebuffer) + offset) = rgb;
                            }
                        }
                    }
                }
            }
 
-           int m_width;
-           int m_height;
-           COLOR_BYTE m_color_bytes;
-           void* m_framebuffer;
+           void attach_display(CoreDisplay* display)
+           {
+               GalAssert(display);
+
+               m_display = display;
+               m_physical_framebuffer = display->m_physical_framebuffer;
+               m_physical_write_index = &display->m_physical_write_index;
+           }
+
+           void set_surface(Z_ORDER_LEVEL max_z_order, CoreRect layer_rect, COLOR_BYTE_TYPE bytes)
+           {
+               m_max_z_order = max_z_order;
+
+               auto malloc_buffer = [&](FramebufferType buffer) -> void*
+               {
+                   if(bytes == COLOR_BITS_16)
+                   {
+                       return (std::get<B16ColorByteType*>(buffer) = static_cast<B16ColorByteType*>(std::calloc(m_width * m_height, bytes)));
+                   }
+                   else if(bytes == COLOR_BITS_32)
+                   {
+                       return (std::get<B32ColorByteType*>(buffer) = static_cast<B32ColorByteType*>(std::calloc(m_width * m_height, bytes)));
+                   }
+
+                   return nullptr;
+               };
+
+               if(m_display && (m_display->m_surface_count > 1))
+               {
+                   malloc_buffer(m_framebuffer);
+               }
+               for(int i = Z_ORDER_LEVEL_LOWEST; i < Z_ORDER_LEVEL_MAX; ++i)
+               {
+                   // top layer framebuffer always be o
+                   auto p = malloc_buffer(m_layers[i].framebuffer);
+                   GalAssert(p != nullptr);
+                   m_layers[i].rect = layer_rect;
+               }
+           }
+
+           unsigned int m_width;
+           unsigned int m_height;
+           FramebufferType m_framebuffer;
            CoreLayer m_layers[Z_ORDER_LEVEL_MAX];
            bool m_is_active;
            Z_ORDER_LEVEL m_max_z_order;
            Z_ORDER_LEVEL m_top_z_order;
-           void* m_physical_framebuffer;
+           FramebufferType m_physical_framebuffer;
            int* m_physical_write_index;
            CoreDisplay* m_display;
 
        private:
-           void write_rgb_to_buffer(void* buffer, unsigned int index, unsigned int rgb)
+           static void write_rgb_to_buffer(FramebufferType buffer, unsigned int index, unsigned int rgb)
            {
-               (m_color_bytes == BITS_32)
-                       ?
-                       (static_cast<unsigned int*>(buffer)[index] = rgb)
-                       :
-                       (static_cast<unsigned short*>(buffer)[index] = utility::rgb_convert_32_to_16(rgb));
+               std::visit(utility::overloaded{
+                                  [&](B16ColorByteType* data){data[index] = utility::rgb_convert_32_to_16(rgb);},
+                                  [&](B32ColorByteType* data){data[index] = rgb;},
+                                  [&](std::nullptr_t data){GalAssert(false);}
+                          }, buffer);
            }
 
-           unsigned int get_rgb_from_buffer(void* buffer, unsigned int index) const
+           [[nodiscard]] static unsigned int get_rgb_from_buffer(const FramebufferType buffer, unsigned int index)
            {
-               return (m_color_bytes == BITS_32)
-                       ?
-                       static_cast<unsigned int*>(buffer)[index]
-                       :
-                       utility::rgb_convert_16_to_32(static_cast<unsigned short*>(buffer)[index]);
+               auto ret = static_cast<unsigned int>(-1);
+               std::visit(utility::overloaded{
+                       [&](const B16ColorByteType* data){ret = utility::rgb_convert_16_to_32(data[index]);},
+                       [&](const B32ColorByteType* data){ret =  data[index];},
+                       [&](std::nullptr_t data){GalAssert(false);}
+               }, buffer);
+
+               return ret;
            }
        };
     }
