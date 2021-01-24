@@ -12,19 +12,124 @@
 #define GalAssert(condition)
 
 namespace Gal {
-
     constexpr auto RealTimeTaskCycleMs              = 50;
     constexpr auto QueueBufferMaxLength             = 1024;
     constexpr auto SurfaceCountMax                  = 6;//root + pages
+    constexpr auto WordBufferLength                 = 16;
+    constexpr auto DefaultColorMask                 = 0xFF080408;
 
-    constexpr auto AlignHorizontalCenter            = 0x00000000L;
-    constexpr auto AlignLeft                        = 0x01000000L;
-    constexpr auto AlignRight                       = 0x02000000L;
-    constexpr auto AlignHorizontalMask              = 0x03000000L;
-    constexpr auto AlignVerticalCenter              = 0x00000000L;
-    constexpr auto AlignTop                         = 0x00100000L;
-    constexpr auto AlignBottom                      = 0x00200000L;
-    constexpr auto AlignVerticalMask                = 0x00300000L;
+    enum class ALIGN_TYPE
+    {
+        ALIGN_HORIZONTAL_CENTER                     = 0x00000000L,
+        ALIGN_HORIZONTAL_LEFT                       = 0x01000000L,
+        ALIGN_HORIZONTAL_RIGHT                      = 0x02000000L,
+        ALIGN_HORIZONTAL_MASK                       = 0x03000000L,
+        ALIGN_VERTICAL_CENTER                       = 0x00000000L,
+        ALIGN_VERTICAL_TOP                          = 0x00100000L,
+        ALIGN_VERTICAL_BOTTOM                       = 0x00200000L,
+        ALIGN_VERTICAL_MASK                         = 0x00300000L
+    };
+    using ALIGN_UNDERLYING_TYPE = std::underlying_type_t<ALIGN_TYPE>;
+
+    /*
+     * flag = enum1 | enum2
+     * if no exist enumerates equal flag, it will lose all data(it maybe equal to the first enumerate but no guarantee)
+     * so cast it's type to EnumType
+     */
+    template <typename Enum, typename EnumType = std::underlying_type_t<Enum>, typename = std::enable_if_t<std::is_enum_v<Enum>>, typename = std::enable_if_t<std::is_same_v<EnumType, std::underlying_type_t<Enum>>>>
+    constexpr EnumType operator|(const Enum& lhs, const Enum& rhs)
+    {
+        return static_cast<EnumType>(static_cast<EnumType>(lhs) | static_cast<EnumType>(rhs));
+    }
+
+    /*
+     * enum = flag1 | enum1
+     * usage:
+     *      if(flag1 | enum1 == ENUM::XXX){xxx;}
+     *      switch(flag1 | enum1){case ENUM:XXX: xxx;}
+     *
+     * note: if no exist enumerates equal flag, it will lose all data(it maybe equal to the first enumerate but no guarantee)
+     */
+    template <typename Enum, typename EnumType, typename = std::enable_if_t<std::is_enum_v<Enum>>, typename = std::enable_if_t<std::is_same_v<EnumType, std::underlying_type_t<Enum>>>>
+    constexpr Enum operator|(const EnumType& lhs, const Enum& rhs)
+    {
+        return static_cast<Enum>(lhs | static_cast<EnumType>(rhs));
+    }
+
+    /*
+     * enum = enum1 | flag1
+     * usage:
+     *      if(enum1 | flag1 == ENUM::XXX){xxx;}
+     *      switch(enum1 | flag1){case ENUM:XXX: xxx;}
+     *
+     * note: if no exist enumerates equal flag, it will lose all data(it maybe equal to the first enumerate but no guarantee)
+     */
+    template <typename Enum, typename EnumType, typename = std::enable_if_t<std::is_enum_v<Enum>>, typename = std::enable_if_t<std::is_same_v<EnumType, std::underlying_type_t<Enum>>>>
+    constexpr Enum operator|(const Enum& lhs, const EnumType& rhs)
+    {
+        return static_cast<Enum>(static_cast<EnumType>(lhs) | rhs);
+    }
+
+    /*
+     * flag |= enum
+     * only flag |= enum operator is valid
+     * use enum |= flag is unreasonable
+     */
+    template <typename Enum, typename EnumType, typename = std::enable_if_t<std::is_enum_v<Enum>>, typename = std::enable_if_t<std::is_same_v<EnumType, std::underlying_type_t<Enum>>>>
+    constexpr EnumType& operator|=(EnumType& lhs, const Enum& rhs)
+    {
+        return (lhs = static_cast<EnumType>(lhs | static_cast<EnumType>(rhs)));
+    }
+
+    /*
+     * flag = enum1 & enum2
+     * if no exist enumerates equal flag, it will lose all data(it maybe equal to the first enumerate but no guarantee)
+     * so cast it's type to EnumType
+     */
+    template <typename Enum, typename EnumType = std::underlying_type_t<Enum>, typename = std::enable_if_t<std::is_enum_v<Enum>>, typename = std::enable_if_t<std::is_same_v<EnumType, std::underlying_type_t<Enum>>>>
+    constexpr EnumType operator&(const Enum& lhs, const Enum& rhs)
+    {
+        return static_cast<EnumType>(static_cast<EnumType>(lhs) & static_cast<EnumType>(rhs));
+    }
+
+    /*
+     * enum = flag1 & enum1
+     * usage:
+     *      if(flag1 & enum1 == ENUM::XXX){xxx;}
+     *      switch(flag1 & enum1){case ENUM:XXX: xxx;}
+     *
+     * note: if no exist enumerates equal flag, it will lose all data(it maybe equal to the first enumerate but no guarantee)
+     */
+    template <typename EnumType, typename Enum, typename = std::enable_if_t<std::is_enum_v<Enum>>, typename = std::enable_if_t<std::is_same_v<EnumType, std::underlying_type_t<Enum>>>>
+    constexpr Enum operator&(const EnumType& lhs, const Enum& rhs)
+    {
+        return static_cast<Enum>(lhs & static_cast<EnumType>(rhs));
+    }
+
+    /*
+     * enum = enum1 & flag1
+     * usage:
+     *      if(enum1 & flag1 == ENUM::XXX){xxx;}
+     *      switch(enum1 & flag1){case ENUM:XXX: xxx;}
+     *
+     * note: if no exist enumerates equal flag, it will lose all data(it maybe equal to the first enumerate but no guarantee)
+     */
+    template <typename Enum, typename EnumType, typename = std::enable_if_t<std::is_enum_v<Enum>>, typename = std::enable_if_t<std::is_same_v<EnumType, std::underlying_type_t<Enum>>>>
+    constexpr Enum operator&(const Enum& lhs, const EnumType& rhs)
+    {
+        return static_cast<Enum>(static_cast<EnumType>(lhs) & rhs);
+    }
+
+    /*
+     * flag &= enum
+     * only flag &= enum operator is valid
+     * use enum &= flag is unreasonable
+     */
+    template <typename EnumType, typename Enum, typename = std::enable_if_t<std::is_enum_v<Enum>>, typename = std::enable_if_t<std::is_same_v<EnumType, std::underlying_type_t<Enum>>>>
+    constexpr EnumType& operator&=(EnumType& lhs, const Enum& rhs)
+    {
+        return (lhs = static_cast<EnumType>(lhs & static_cast<EnumType>(rhs)));
+    }
 
     namespace utility {
         template<typename T, typename... Args>
@@ -146,7 +251,7 @@ namespace Gal {
             int m_bottom;
        };
 
-       enum COLOR_BYTE_TYPE
+        enum class COLOR_BYTE_TYPE
        {
            COLOR_BITS_16 = 2,
            COLOR_BITS_32 = 4
@@ -157,21 +262,22 @@ namespace Gal {
 
        class CoreTheme
        {
-           enum FONT_TYPE
+       public:
+           enum class FONT_TYPE
            {
-               FONT_NULL,
+               FONT_NULL = 0,
                FONT_DEFAULT,
                FONT_CUSTOM,
                FONT_MAX
            };
-           enum BITMAP_TYPE
+           enum class BITMAP_TYPE
            {
-               BITMAP_CUSTOM,
+               BITMAP_CUSTOM = 0,
                BITMAP_MAX
            };
-           enum COLOR_TYPE
+           enum class COLOR_TYPE
            {
-               COLOR_WND_FONT,
+               COLOR_WND_FONT = 0,
                COLOR_WND_NORMAL,
                COLOR_WND_PUSHED,
                COLOR_WND_FOCUS,
@@ -202,77 +308,77 @@ namespace Gal {
                lattice* lattice_array;
            };
 
-       public:
            static bool add_font(FONT_TYPE index, const font_info* font)
            {
-               if (index >= FONT_MAX)
+               if (index >= FONT_TYPE::FONT_MAX)
                {
                    GalAssert(false);
                    return false;
                }
-               s_font_map[index] = font;
+               s_font_map[static_cast<std::size_t>(index)] = font;
                return true;
            }
 
            static const font_info* get_font(FONT_TYPE index)
            {
-               if(index >= FONT_MAX)
+               if(index >= FONT_TYPE::FONT_MAX)
                {
                    GalAssert(false);
                    return nullptr;
                }
-               return s_font_map[index];
+               return s_font_map[static_cast<std::size_t>(index)];
            }
 
            static bool add_bitmap(BITMAP_TYPE index, const bitmap_info* bitmap)
            {
-               if(index >= BITMAP_MAX)
+               if(index >= BITMAP_TYPE::BITMAP_MAX)
                {
                    GalAssert(false);
                    return false;
                }
-               s_bitmap_map[index] = bitmap;
+               s_bitmap_map[static_cast<std::size_t>(index)] = bitmap;
                return true;
            }
 
            static const bitmap_info* get_bitmap(BITMAP_TYPE index)
            {
-               if(index >= BITMAP_MAX)
+               if(index >= BITMAP_TYPE::BITMAP_MAX)
                {
                    GalAssert(false);
                    return nullptr;
                }
-               return s_bitmap_map[index];
+               return s_bitmap_map[static_cast<std::size_t>(index)];
            }
 
            static bool add_color(COLOR_TYPE index, const unsigned int color)
            {
-               if(index >= COLOR_MAX)
+               if(index >= COLOR_TYPE::COLOR_MAX)
                {
                    GalAssert(false);
                    return false;
                }
-               s_color_map[index] = color;
+               s_color_map[static_cast<std::size_t>(index)] = color;
                return true;
            }
 
            static unsigned int get_color(COLOR_TYPE index)
            {
-               if(index >= COLOR_MAX)
+               if(index >= COLOR_TYPE::COLOR_MAX)
                {
                    GalAssert(false);
                    return static_cast<unsigned int>(-1);
                }
-               return s_color_map[index];
+               return s_color_map[static_cast<std::size_t>(index)];
            }
 
        private:
-           static std::array<const font_info*, FONT_MAX> s_font_map;
-           static std::array<const bitmap_info*, BITMAP_MAX> s_bitmap_map;
-           static std::array<unsigned int, COLOR_MAX> s_color_map;
+           static std::array<const font_info*, static_cast<std::size_t>(FONT_TYPE::FONT_MAX)> s_font_map;
+           static std::array<const bitmap_info*, static_cast<std::size_t>(BITMAP_TYPE::BITMAP_MAX)> s_bitmap_map;
+           static std::array<unsigned int, static_cast<std::size_t>(COLOR_TYPE::COLOR_MAX)> s_color_map;
        };
 
        class CoreSurface {
+       public:
            enum Z_ORDER_LEVEL {
                Z_ORDER_LEVEL_LOWEST,
                Z_ORDER_LEVEL_MIDDLE,
@@ -281,40 +387,59 @@ namespace Gal {
            };
 
            template<COLOR_BYTE_TYPE Bytes>
-           using ColorByteType = std::conditional_t<Bytes == COLOR_BITS_16, B16ByteType, B32ByteType>;
-           using B16ColorByteType = ColorByteType<COLOR_BITS_16>;
-           using B32ColorByteType = ColorByteType<COLOR_BITS_32>;
+           using ColorByteType = std::conditional_t<Bytes == COLOR_BYTE_TYPE::COLOR_BITS_16, B16ByteType, B32ByteType>;
+           using B16ColorByteType = ColorByteType<COLOR_BYTE_TYPE::COLOR_BITS_16>;
+           using B32ColorByteType = ColorByteType<COLOR_BYTE_TYPE::COLOR_BITS_32>;
            using FramebufferType = std::variant<B16ColorByteType*, B32ColorByteType*, std::nullptr_t>;
 
-           class CoreDisplay {
-               struct external_gfx_operator {
-                   std::function<void(int, int, unsigned int)> draw_pixel;
-                   std::function<void(int, int, int, int, unsigned int)> fill_rect;
-               };
+           struct external_gfx_operator {
+               std::function<void(int, int, unsigned int)> draw_pixel;
+               std::function<void(int, int, int, int, unsigned int)> fill_rect;
+           };
 
+           class CoreDisplay {
                friend class CoreSurface;
+               friend class CoreSurfaceNoFramebuffer;
 
            public:
+               //multiple surface or surface_no_fb
                CoreDisplay(
-                       FramebufferType* physical_framebuffer,
+                       FramebufferType physical_framebuffer,
                        int display_width,
                        int display_height,
-                       int suerface_width,
+                       COLOR_BYTE_TYPE color_bytes,
+                       int surface_width,
                        int surface_height,
                        int surface_count,
-                       external_gfx_operator *gfx_operator = nullptr);//multiple surface or surface_no_fb
+                       external_gfx_operator *gfx_operator = nullptr);
 
+               //single custom surface
                CoreDisplay(
-                       FramebufferType* physical_framebuffer,
+                       FramebufferType physical_framebuffer,
                        int display_width,
                        int display_height,
-                       CoreSurface* surface);//single custom surface
+                       CoreSurface* surface);
 
+               //for multiple surfaces
                CoreSurface* alloc_surface(
-                       Z_ORDER_LEVEL maz_z_order,
-                       CoreRect layer_rect = CoreRect());//for multiple surfaces
+                       Z_ORDER_LEVEL max_z_order,
+                       CoreRect layer_rect = CoreRect())
+               {
+                   GalAssert(max_z_order < Z_ORDER_LEVEL_MAX && m_surface_index < m_surface_count);
+                   GalAssert(!std::holds_alternative<std::nullptr_t>(m_physical_framebuffer));
 
-               int swipe_surface(CoreSurface* surface1, CoreSurface* surface2, int x0, int x1, int y0, int y1, int offset);
+                   COLOR_BYTE_TYPE bytes = std::holds_alternative<B16ColorByteType*>(m_physical_framebuffer) ? COLOR_BYTE_TYPE::COLOR_BITS_16 : COLOR_BYTE_TYPE::COLOR_BITS_32;
+
+                   (layer_rect == CoreRect())
+                   ?
+                   m_surface_group[m_surface_index]->set_surface(max_z_order, CoreRect(0, 0, m_width - 1, m_height - 1, 0), bytes)
+                   :
+                   m_surface_group[m_surface_index]->set_surface(max_z_order, layer_rect, bytes);
+
+                   return m_surface_group[m_surface_index++];
+               }
+
+               bool swipe_surface(CoreSurface* surface1, CoreSurface* surface2, int x0, int x1, int y0, int y1, int offset);
 
                [[nodiscard]] int get_width() const {
                    return m_width;
@@ -584,17 +709,18 @@ namespace Gal {
 
                char* source = nullptr;
                char* dest = nullptr;
-               COLOR_BYTE_TYPE bytes;
+               using UNDERLYING_BYTE_TYPE = std::underlying_type_t<COLOR_BYTE_TYPE>;
+               UNDERLYING_BYTE_TYPE bytes;
 
                if(std::holds_alternative<B16ColorByteType*>(m_framebuffer))
                {
-                   bytes = COLOR_BITS_16;
+                   bytes = static_cast<UNDERLYING_BYTE_TYPE>(COLOR_BYTE_TYPE::COLOR_BITS_16);
                    source = reinterpret_cast<char*>(std::get<B16ColorByteType*>(m_framebuffer));
                    dest = reinterpret_cast<char*>(std::get<B16ColorByteType*>(m_physical_framebuffer));
                }
                else
                {
-                   bytes = COLOR_BITS_32;
+                   bytes = static_cast<UNDERLYING_BYTE_TYPE>(COLOR_BYTE_TYPE::COLOR_BITS_32);
                    source = reinterpret_cast<char*>(std::get<B32ColorByteType*>(m_framebuffer));
                    dest = reinterpret_cast<char*>(std::get<B32ColorByteType*>(m_physical_framebuffer));
                }
@@ -662,52 +788,57 @@ namespace Gal {
                auto display_width = m_display->get_width();
                auto display_height = m_display->get_height();
 
+               void* framebuffer = nullptr;
+               void* physical_framebuffer = nullptr;
+               COLOR_BYTE_TYPE bytes;
+               bool is_framebuffer_null = false;
+
+               if(std::holds_alternative<std::nullptr_t>(m_framebuffer))
+               {
+                   is_framebuffer_null = true;
+               }
+
+               if(std::holds_alternative<B16ColorByteType*>(m_physical_framebuffer))
+               {
+                   bytes = COLOR_BYTE_TYPE::COLOR_BITS_16;
+                   if(!is_framebuffer_null)
+                   {
+                       framebuffer = std::get<B16ColorByteType*>(m_framebuffer);
+                   }
+                   physical_framebuffer = std::get<B16ColorByteType*>(m_physical_framebuffer);
+                   rgb = utility::rgb_convert_32_to_16(rgb);
+               }
+               else
+               {
+                   bytes = COLOR_BYTE_TYPE::COLOR_BITS_32;
+                   if(!is_framebuffer_null)
+                   {
+                       framebuffer = std::get<B32ColorByteType*>(m_framebuffer);
+                   }
+                   physical_framebuffer = std::get<B32ColorByteType*>(m_physical_framebuffer);
+               }
+
                for(;y0 <= y1; ++y0)
                {
                    auto framebuffer_index = y0 * m_width + x0;
                    auto physical_framebuffer_index = y0 * display_width + x0;
-                   void* framebuffer = nullptr;
-                   void* physical_framebuffer = nullptr;
-                   COLOR_BYTE_TYPE bytes;
-                   bool is_framebuffer_null = false;
 
-                   if(std::holds_alternative<std::nullptr_t>(m_framebuffer))
+                   if(bytes == COLOR_BYTE_TYPE::COLOR_BITS_16)
                    {
-                       is_framebuffer_null = true;
-                   }
-
-                   if(std::holds_alternative<B32ColorByteType*>(m_physical_framebuffer))
-                   {
-                       bytes = COLOR_BITS_32;
+                       framebuffer = static_cast<B16ColorByteType*>(framebuffer) + framebuffer_index;
+                       physical_framebuffer = static_cast<B16ColorByteType*>(physical_framebuffer) + physical_framebuffer_index;
                    }
                    else
                    {
-                       bytes = COLOR_BITS_16;
-                   }
-
-                   if(bytes == COLOR_BITS_16)
-                   {
-                       if(!is_framebuffer_null)
-                       {
-                           framebuffer = &std::get<B16ColorByteType*>(m_framebuffer)[framebuffer_index];
-                       }
-                       physical_framebuffer = &std::get<B16ColorByteType*>(m_physical_framebuffer)[physical_framebuffer_index];
-                       rgb = utility::rgb_convert_32_to_16(rgb);
-                   }
-                   else
-                   {
-                       if(!is_framebuffer_null)
-                       {
-                           framebuffer = &std::get<B32ColorByteType*>(m_framebuffer)[framebuffer_index];
-                       }
-                       physical_framebuffer = &std::get<B32ColorByteType*>(m_physical_framebuffer)[physical_framebuffer_index];
+                       framebuffer = static_cast<B32ColorByteType*>(framebuffer) + framebuffer_index;
+                       physical_framebuffer = static_cast<B32ColorByteType*>(physical_framebuffer) + physical_framebuffer_index;
                    }
 
                    ++*m_physical_write_index;
 
                    for(auto x = x0, offset = 0; x <= x1; ++x, ++offset)
                    {
-                       if(bytes == COLOR_BITS_16)
+                       if(bytes == COLOR_BYTE_TYPE::COLOR_BITS_16)
                        {
                            if(!is_framebuffer_null)
                            {
@@ -748,13 +879,13 @@ namespace Gal {
 
                auto malloc_buffer = [&](FramebufferType buffer) -> void*
                {
-                   if(bytes == COLOR_BITS_16)
+                   if(bytes == COLOR_BYTE_TYPE::COLOR_BITS_16)
                    {
-                       return (std::get<B16ColorByteType*>(buffer) = static_cast<B16ColorByteType*>(std::calloc(m_width * m_height, bytes)));
+                       return (std::get<B16ColorByteType*>(buffer) = static_cast<B16ColorByteType*>(std::calloc(m_width * m_height, static_cast<std::size_t>(bytes))));
                    }
-                   else if(bytes == COLOR_BITS_32)
+                   else if(bytes == COLOR_BYTE_TYPE::COLOR_BITS_32)
                    {
-                       return (std::get<B32ColorByteType*>(buffer) = static_cast<B32ColorByteType*>(std::calloc(m_width * m_height, bytes)));
+                       return (std::get<B32ColorByteType*>(buffer) = static_cast<B32ColorByteType*>(std::calloc(m_width * m_height, static_cast<std::size_t>(bytes))));
                    }
 
                    return nullptr;
@@ -784,8 +915,7 @@ namespace Gal {
            int* m_physical_write_index;
            CoreDisplay* m_display;
 
-       private:
-           static void write_rgb_to_buffer(FramebufferType buffer, unsigned int index, unsigned int rgb)
+           static void write_rgb_to_buffer(FramebufferType& buffer, unsigned int index, unsigned int rgb)
            {
                std::visit(utility::overloaded{
                                   [&](B16ColorByteType* data){data[index] = utility::rgb_convert_32_to_16(rgb);},
@@ -794,7 +924,7 @@ namespace Gal {
                           }, buffer);
            }
 
-           [[nodiscard]] static unsigned int get_rgb_from_buffer(const FramebufferType buffer, unsigned int index)
+           [[nodiscard]] static unsigned int get_rgb_from_buffer(const FramebufferType& buffer, unsigned int index)
            {
                auto ret = static_cast<unsigned int>(-1);
                std::visit(utility::overloaded{
@@ -806,5 +936,589 @@ namespace Gal {
                return ret;
            }
        };
+
+       class CoreSurfaceNoFramebuffer : public CoreSurface
+       {
+           //No physical framebuffer, render with external graphic interface
+       public:
+           CoreSurfaceNoFramebuffer(
+                   int width,
+                   int height,
+                   COLOR_BYTE_TYPE color_bytes,
+                   CoreSurface::external_gfx_operator* gfx_operator,
+                   CoreSurface::Z_ORDER_LEVEL max_z_order = CoreSurface::Z_ORDER_LEVEL_LOWEST,
+                   CoreRect overlapped_rect = CoreRect())
+                   : CoreSurface(width, height, color_bytes, max_z_order, overlapped_rect), m_gfx_operator(gfx_operator) {};
+
+           [[nodiscard]] CoreSurface::external_gfx_operator* get_gfx_operator() const
+           {
+               return m_gfx_operator;
+           }
+
+       protected:
+           void draw_pixel_on_framebuffer(int x, int y, unsigned int rgb) override
+           {
+               if(m_gfx_operator && m_gfx_operator->draw_pixel && m_is_active)
+               {
+                   m_gfx_operator->draw_pixel(x, y, rgb);
+               }
+               if(std::holds_alternative<std::nullptr_t>(m_framebuffer)){return;}
+               write_rgb_to_buffer(m_framebuffer, y * m_width + x, rgb);
+           }
+
+           void fill_rect_on_framebuffer(int x0, int y0, int x1, int y1, unsigned int rgb) override
+           {
+               if(!m_gfx_operator){return;}
+
+               if(auto& filler = m_gfx_operator->fill_rect; filler)
+               {
+                   return m_gfx_operator->fill_rect(x0, y0, x1, y1, rgb);
+               }
+               if(auto& drawer = m_gfx_operator->draw_pixel; drawer && m_is_active)
+               {
+                   for(auto y = y0; y <= y1; ++y)
+                   {
+                       for(auto x = x0; x <= x1; ++x)
+                       {
+                           drawer(x, y, rgb);
+                       }
+                   }
+               }
+               if(std::holds_alternative<std::nullptr_t>(m_framebuffer)){return;}
+
+               void* framebuffer = nullptr;
+               COLOR_BYTE_TYPE bytes;
+
+               if(std::holds_alternative<B16ColorByteType*>(m_framebuffer))
+               {
+                   bytes = COLOR_BYTE_TYPE::COLOR_BITS_16;
+                   framebuffer = std::get<B16ColorByteType*>(m_framebuffer);
+                   rgb = utility::rgb_convert_32_to_16(rgb);
+               }
+               else
+               {
+                   bytes = COLOR_BYTE_TYPE::COLOR_BITS_32;
+                   framebuffer = std::get<B32ColorByteType*>(m_framebuffer);
+               }
+
+               for(auto y = y0; y <= y1; ++y)
+               {
+                   auto index = y0 * m_width + x0;
+                   if(bytes == COLOR_BYTE_TYPE::COLOR_BITS_16)
+                   {
+                       framebuffer = static_cast<B16ColorByteType*>(framebuffer) + index;
+                   }
+                   else
+                   {
+                       framebuffer = static_cast<B32ColorByteType*>(framebuffer) + index;
+                   }
+
+                   for(auto x = x0, offset = 0; x <= x1; ++x, ++offset)
+                   {
+                       if(bytes == COLOR_BYTE_TYPE::COLOR_BITS_16)
+                       {
+                           *(static_cast<B16ColorByteType*>(framebuffer) + offset) = rgb;
+                       }
+                       else
+                       {
+                           *(static_cast<B32ColorByteType*>(framebuffer) + offset) = rgb;
+                       }
+                   }
+               }
+           }
+
+           //Rendering by external method
+           CoreSurface::external_gfx_operator* m_gfx_operator;
+       };
+
+       CoreSurface::CoreDisplay::CoreDisplay(
+               FramebufferType physical_framebuffer,
+               int display_width,
+               int display_height,
+               COLOR_BYTE_TYPE color_bytes,
+               int surface_width,
+               int surface_height,
+               int surface_count,
+               external_gfx_operator *gfx_operator)
+               :
+               m_width(display_width),
+               m_height(display_height),
+               m_physical_framebuffer(physical_framebuffer),
+               m_physical_read_index(0),
+               m_physical_write_index(0),
+               m_surface_count(surface_count),
+               m_surface_index(0),
+               m_surface_group({nullptr})
+       {
+           GalAssert(color_bytes == COLOR_BITS_16 || color_bytes == COLOR_BITS_32);
+           GalAssert(m_surface_count <= SurfaceCountMax);
+
+           for(int i = 0; i < m_surface_count; ++i)
+           {
+               m_surface_group[i] = (std::holds_alternative<std::nullptr_t>(physical_framebuffer))
+                       ?
+                       new CoreSurface(surface_width, surface_height, color_bytes)
+                       :
+                       new CoreSurfaceNoFramebuffer(surface_width, surface_height, color_bytes, gfx_operator);
+
+               m_surface_group[i]->attach_display(this);
+           }
+       }
+
+       CoreSurface::CoreDisplay::CoreDisplay(
+               FramebufferType physical_framebuffer,
+               int display_width,
+               int display_height,
+               CoreSurface *surface)
+               :
+               m_width(display_width),
+               m_height(display_height),
+               m_physical_framebuffer(physical_framebuffer),
+               m_physical_read_index(0),
+               m_physical_write_index(0),
+               m_surface_count(1),
+               m_surface_index(0),
+               m_surface_group({nullptr})
+       {
+           surface->m_is_active = true;
+           m_surface_group[0] = surface;
+           m_surface_group[0]->attach_display(this);
+       }
+
+       bool CoreSurface::CoreDisplay::swipe_surface(CoreSurface *surface1, CoreSurface *surface2, int x0, int x1, int y0, int y1, int offset)
+       {
+           auto surface_width = surface1->get_width();
+           auto surface_height = surface1->get_height();
+           if(
+                   offset < 0 || offset > surface_width
+                   || x0 < 0 || x0 >= surface_width
+                   || x1 < 0 || x1 >= surface_width
+                   || y0 < 0 || y0 >= surface_height
+                   || y1 < 0 || y1 >= surface_height
+                   )
+           {
+               GalAssert(false);
+               return false;
+           }
+
+           auto width = (x1 - x0 + 1);
+           if(width < 0 || width > surface_width || width < offset)
+           {
+               GalAssert(false);
+               return false;
+           }
+
+           GalAssert(!std::holds_alternative<std::nullptr_t>(surface1->m_framebuffer));
+           GalAssert(!std::holds_alternative<std::nullptr_t>(surface2->m_framebuffer));
+           using UNDERLYING_BYTE_TYPE = std::underlying_type_t<COLOR_BYTE_TYPE>;
+           UNDERLYING_BYTE_TYPE bytes =
+                   std::holds_alternative<B16ColorByteType*>(surface1->m_framebuffer)
+                           ?
+                           static_cast<UNDERLYING_BYTE_TYPE>(COLOR_BYTE_TYPE::COLOR_BITS_16)
+                           :
+                           static_cast<UNDERLYING_BYTE_TYPE>(COLOR_BYTE_TYPE::COLOR_BITS_32);
+
+           x0 = (x0 >= m_width) ? (m_width - 1) : x0;
+           x1 = (x1 >= m_width) ? (m_width - 1) : x1;
+           y0 = (y0 >= m_height) ? (m_height - 1) : y0;
+           y1 = (y1 >= m_height) ? (m_height - 1) : y1;
+           if(!std::holds_alternative<std::nullptr_t>(m_physical_framebuffer))
+           {
+               char* left_source = nullptr;
+               char* right_source = nullptr;
+               char* dest = nullptr;
+
+               if(std::holds_alternative<B16ColorByteType*>(m_physical_framebuffer))
+               {
+                   bytes = static_cast<UNDERLYING_BYTE_TYPE>(COLOR_BYTE_TYPE::COLOR_BITS_16);
+                   left_source = reinterpret_cast<char*>(std::get<B16ColorByteType*>(surface1->m_framebuffer));
+                   right_source = reinterpret_cast<char*>(std::get<B16ColorByteType*>(surface2->m_framebuffer));
+                   dest = reinterpret_cast<char*>(std::get<B16ColorByteType*>(m_physical_framebuffer));
+               }
+               else
+               {
+                   bytes = static_cast<UNDERLYING_BYTE_TYPE>(COLOR_BYTE_TYPE::COLOR_BITS_32);
+                   left_source = reinterpret_cast<char*>(std::get<B32ColorByteType*>(surface1->m_framebuffer));
+                   right_source = reinterpret_cast<char*>(std::get<B32ColorByteType*>(surface2->m_framebuffer));
+                   dest = reinterpret_cast<char*>(std::get<B32ColorByteType*>(m_physical_framebuffer));
+               }
+
+               for(int y = y0; y <= y1; ++y)
+               {
+                   //Left surface
+                   auto left_source_index = (y * surface1->get_width() + x0 + offset) * bytes;
+                   auto left_dest_index = (y * m_width + x0) * bytes;
+                   //Right surface
+                   auto right_source_index = (y * surface2->get_width() + x0) * bytes;
+                   auto right_dest_index = (y * m_width + x0 + (width - offset)) * bytes;
+
+                   std::memcpy(dest + left_dest_index, left_source + left_source_index, (width - offset) * bytes);
+                   std::memcpy(dest + right_dest_index, right_source + right_source_index, offset * bytes);
+               }
+           }
+           else
+           {
+               auto draw_pixel = dynamic_cast<CoreSurfaceNoFramebuffer*>(surface1)->get_gfx_operator()->draw_pixel;
+
+               for(auto y = y0; y <= y1; ++y)
+               {
+                   //Left surface
+                   for(auto x = x0; x <= (x1 - offset); ++x)
+                   {
+                       draw_pixel(x, y, get_rgb_from_buffer(surface1->m_framebuffer, y * m_width + x + offset));
+                   }
+                   //Right surface
+                   for(auto x = x1 - offset; x <= x1; ++x)
+                   {
+                       draw_pixel(x, y, get_rgb_from_buffer(surface2->m_framebuffer, y * m_width + x + offset - x1 + x0));
+                   }
+               }
+           }
+
+           ++m_physical_write_index;
+           return true;
+       }
+
+       class CoreWord
+       {
+       public:
+           static void draw_string(
+                   CoreSurface* surface,
+                   CoreSurface::Z_ORDER_LEVEL z_order,
+                   const char* str,
+                   int x, int y,
+                   const CoreTheme::font_info* font,
+                   unsigned int font_color,
+                   unsigned background_color,
+                   ALIGN_TYPE align_type = ALIGN_TYPE::ALIGN_HORIZONTAL_LEFT)
+           {
+               if(str == nullptr){return;}
+
+               auto offset = 0;
+               while(*str)
+               {
+                   unsigned int code;
+                   str += get_utf8_code(str, code);
+                   offset += draw_single_char(surface, z_order, code, x + offset, y, font, font_color, background_color);
+               }
+           }
+
+           static void draw_string_in_rect(
+                   CoreSurface* surface,
+                   CoreSurface::Z_ORDER_LEVEL z_order,
+                   const char* str,
+                   CoreRect rect,
+                   const CoreTheme::font_info* font,
+                   unsigned int font_color,
+                   unsigned int background_color,
+                   ALIGN_TYPE align_type = ALIGN_TYPE::ALIGN_HORIZONTAL_LEFT)
+           {
+               if(str == nullptr){return;}
+
+               int x;
+               int y;
+               get_string_pos(str, font, rect, align_type, x, y);
+               draw_string(surface, z_order, str, rect.m_left + x, rect.m_top + y, font, font_color, background_color, align_type);
+           }
+
+           static void draw_value(
+                   CoreSurface* surface,
+                   CoreSurface::Z_ORDER_LEVEL z_order,
+                   int value,
+                  int dot_position,
+                   int x, int y,
+                   const CoreTheme::font_info* font,
+                   unsigned int font_color,
+                   unsigned int background_color,
+                   ALIGN_TYPE align_type = ALIGN_TYPE::ALIGN_HORIZONTAL_LEFT)
+           {
+               char buffer[WordBufferLength];
+               value_to_string(value, dot_position, buffer, WordBufferLength);
+               draw_string(surface, z_order, buffer, x, y, font, font_color, background_color, align_type);
+           }
+
+           static void draw_value_in_rect(
+                   CoreSurface* surface,
+                   CoreSurface::Z_ORDER_LEVEL z_order,
+                   int value,
+                   int dot_position,
+                   CoreRect rect,
+                   const CoreTheme::font_info* font,
+                   unsigned int font_color,
+                   unsigned int background_color,
+                   ALIGN_TYPE align_type = ALIGN_TYPE::ALIGN_HORIZONTAL_LEFT)
+           {
+               char buffer[WordBufferLength];
+               value_to_string(value, dot_position, buffer, WordBufferLength);
+               draw_string_in_rect(surface, z_order, buffer, rect, font, font_color, background_color, align_type);
+           }
+
+           static void value_to_string(int value, int dot_position, char* buffer, int length)
+           {
+               memset(buffer, 0, length);
+               switch (dot_position) {
+                   case 0:
+                       sprintf(buffer, "%d", value);
+                       break;
+                   case 1:
+                       sprintf(buffer, "%.1f", value * 1.0 / 10);
+                       break;
+                   case 2:
+                       sprintf(buffer, "%.2f", value * 1.0 / 100);
+                       break;
+                   case 3:
+                       sprintf(buffer, "%.3f", value * 1.0 / 1000);
+                       break;
+                   default:
+                       GalAssert(false);
+                       break;
+               }
+           }
+
+           static bool get_str_size(const char* str, const CoreTheme::font_info* font, int& width, int& height)
+           {
+               if(str == nullptr || font == nullptr)
+               {
+                   width = 0;
+                   height = 0;
+                   return false;
+               }
+               auto lattice_width = 0;
+               while (*str)
+               {
+                   unsigned int code;
+                   str += get_utf8_code(str, code);
+                   auto lattice = get_lattice(font, code);
+                   lattice_width += lattice ? lattice->width : font->height;
+               }
+               width = lattice_width;
+               height = font->height;
+               return true;
+           }
+
+       private:
+           static int draw_single_char(
+                   CoreSurface* surface,
+                   CoreSurface::Z_ORDER_LEVEL z_order,
+                   unsigned int utf8_code,
+                   int x, int y,
+                   const CoreTheme::font_info* font,
+                   unsigned int font_color,
+                   unsigned int background_color)
+           {
+               auto error_color = static_cast<unsigned int>(-1);
+               if(font)
+               {
+                   const auto lattice = get_lattice(font, utf8_code);
+                   if(lattice)
+                   {
+                       draw_lattice(surface, z_order, x, y, lattice->width, font->height, lattice->pixel_gray_array, font_color, background_color);
+                       return lattice->width;
+                   }
+               }
+               else
+               {
+                   error_color = utility::build_rgb(255, 0, 0);
+               }
+               //lattice/font not found, draw "X"
+               const int length = 16;
+               for(auto _y = 0; _y < length; ++_y)
+               {
+                   for(auto _x = 0; _x < length; ++_x)
+                   {
+                       auto diff = (_x - _y);
+                       int sum = (_x + _y);
+                       if(utility::abs(diff) <= 1 || utility::abs(sum - length) <= 1)
+                       {
+                           surface->draw_pixel(x + _x, y + _y, error_color, z_order);
+                       }
+                       else
+                       {
+                           surface->draw_pixel(x+_x, y + _y, 0, z_order);
+                       }
+                   }
+               }
+
+               return length;
+           }
+
+           static void draw_lattice(
+                   CoreSurface* surface,
+                   CoreSurface::Z_ORDER_LEVEL z_order,
+                   int x, int y,
+                   int width, int height,
+                   const unsigned char* data,
+                   unsigned int font_color,
+                   unsigned int background_color)
+           {
+               unsigned char block_value;
+               unsigned char block_count;
+               unsigned int red;
+               unsigned int green;
+               unsigned int blue;
+               unsigned int rgb;
+
+               auto load_new_block = [&]()
+               {
+                   block_value = *data++;
+                   block_count = *data++;
+                   red = (utility::get_red_from_argb(font_color) * block_value + utility::get_red_from_argb(background_color) * (255 - block_value)) >> 8;
+                   green = (utility::get_green_from_argb(font_color) * block_value + utility::get_green_from_argb(background_color) * (255 - block_value)) >> 8;
+                   blue = (utility::get_blue_from_argb(font_color) * block_value + utility::get_blue_from_argb(background_color) * (255 - block_value)) >> 8;
+                   rgb = utility::build_rgb(red, green, blue);
+               };
+
+               load_new_block();
+               for(auto _y = 0; _y < height; ++_y)
+               {
+                   for(auto _x = 0; _x < width; ++_x)
+                   {
+                       GalAssert(block_count);
+                       if(block_value == 0x00)
+                       {
+                           if(utility::get_alpha_from_argb(background_color))
+                           {
+                               surface->draw_pixel(x + _x, y + _y, background_color, z_order);
+                           }
+                       }
+                       else
+                       {
+                           surface->draw_pixel(x + _x, y + _y, rgb, z_order);
+                       }
+                       if(--block_count == 0)
+                       {
+                           //reload new block
+                           load_new_block();
+                       }
+                   }
+               }
+           }
+
+           static const CoreTheme::font_info::lattice* get_lattice(const CoreTheme::font_info* font, unsigned int utf8_code)
+           {
+               auto last = font->count - 1;
+               auto first = static_cast<decltype(last)>(0);
+               auto middle = static_cast<decltype(last)>(first + last) / 2;
+
+               while (first <= last)
+               {
+                   auto code = font->lattice_array[middle].utf8_code;
+                   if(code < utf8_code)
+                   {
+                       first = middle + 1;
+                   }
+                   else if(code == utf8_code)
+                   {
+                       return &font->lattice_array[middle];
+                   }
+                   else
+                   {
+                       last = middle - 1;
+                   }
+                   middle = (first + last) / 2;
+               }
+
+               return nullptr;
+           }
+
+           static void get_string_pos(const char* str, const CoreTheme::font_info* font, CoreRect rect, ALIGN_TYPE align_type, int& x, int& y)
+           {
+               auto _align_type = static_cast<ALIGN_UNDERLYING_TYPE>(align_type);
+
+               int x_size;
+               int y_size;
+               get_str_size(str, font, x_size, y_size);
+               auto width = rect.get_width();
+               auto height = rect.get_height();
+               x = 0;
+               y = 0;
+
+               switch (_align_type & ALIGN_TYPE::ALIGN_HORIZONTAL_MASK) {
+                   case ALIGN_TYPE::ALIGN_HORIZONTAL_CENTER:
+                       if(width > x_size)
+                       {
+                           x = (width - x_size) / 2;
+                       }
+                       break;
+                   case ALIGN_TYPE::ALIGN_HORIZONTAL_LEFT:
+                       x = 0;
+                       break;
+                   case ALIGN_TYPE::ALIGN_HORIZONTAL_RIGHT:
+                       if(width > x_size)
+                       {
+                           x = width - x_size;
+                       }
+                       break;
+                   default:
+                       GalAssert(false);
+                       break;
+               }
+               switch (_align_type & ALIGN_TYPE::ALIGN_VERTICAL_MASK) {
+                   case ALIGN_TYPE::ALIGN_VERTICAL_CENTER:
+                       if(height > y_size)
+                       {
+                           y = (height - y_size) / 2;
+                       }
+                       break;
+                   case ALIGN_TYPE::ALIGN_VERTICAL_TOP:
+                       y = 0;
+                       break;
+                   case ALIGN_TYPE::ALIGN_VERTICAL_BOTTOM:
+                       if(height > y_size)
+                       {
+                           y = height - y_size;
+                       }
+                       break;
+                   default:
+                       GalAssert(false);
+                       break;
+               }
+           }
+
+           static int get_utf8_code(const char* str, unsigned int& output_utf8_code)
+           {
+               static std::array<unsigned char, 256> s_utf8_length_table =
+                       {
+                               1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                               1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                               1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                               1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                               1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                               1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                               1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                               1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                               1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                               1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                               1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                               1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                               2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+                               2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+                               3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+                               4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 1, 1
+                       };
+               auto p = reinterpret_cast<unsigned char*>(const_cast<char*>(str));
+               auto utf8_bytes = s_utf8_length_table[*p];
+               switch (utf8_bytes) {
+                   case 1:
+                       output_utf8_code = *p;
+                       break;
+                   case 2:
+                       output_utf8_code = (*p << 8) | *(p + 1);
+                       break;
+                   case 3:
+                       output_utf8_code = (*p << 16) | (*(p + 1) << 8) | *(p + 2);
+                       break;
+                   case 4:
+                       output_utf8_code = (*p << 24) | (*(p + 1) << 16) | (*(p + 2) << 8) | *(p + 3);
+                       break;
+                   default:
+                       GalAssert(false);
+                       break;
+               }
+               return utf8_bytes;
+           }
+       };
+
+       class CoreBitmap;
     }
 }
