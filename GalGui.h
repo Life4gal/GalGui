@@ -2231,5 +2231,148 @@ namespace Gal {
 
            WindowCallback m_on_click;
        };
+
+       class CoreDialog : public CoreWindow
+       {
+       public:
+           enum class OPEN_DIALOG_STATUS
+           {
+               FAILED = 0,
+               SUCCESS = 1
+           };
+
+           enum class CLOSE_DIALOG_STATUS
+           {
+               FAILED = -1,
+               DO_NOTHING = 0,
+               SUCCESS = 1
+           };
+
+           enum class SET_DIALOG_STATUS
+           {
+               FAILED = -1,
+               SET_DIALOG = 0,
+               SET_DIALOG_AND_SURFACE = 1
+           };
+
+           struct dialog_array
+           {
+               CoreDialog* dialog;
+               CoreSurface* surface;
+           };
+
+           static OPEN_DIALOG_STATUS open_dialog(CoreDialog* dialog, bool modal = true)
+           {
+               if(dialog == nullptr)
+               {
+                   GalAssert(false);
+                   return OPEN_DIALOG_STATUS::FAILED;
+               }
+               auto curr = get_dialog(dialog->get_surface());
+               if(curr == dialog)
+               {
+                   return OPEN_DIALOG_STATUS::SUCCESS;
+               }
+               if(curr)
+               {
+                   curr->set_attribution(static_cast<WINDOW_ATTRIBUTION>(0));
+               }
+               auto mode = WINDOW_ATTRIBUTION::FOCUS | WINDOW_ATTRIBUTION::VISIBLE;
+               dialog->set_attribution(modal ? (mode | WINDOW_ATTRIBUTION::PRIORITY) : static_cast<WINDOW_ATTRIBUTION>(mode));
+               dialog->show_window();
+               dialog->set_dialog();
+               return OPEN_DIALOG_STATUS::SUCCESS;
+           }
+
+           static CLOSE_DIALOG_STATUS close_dialog(CoreSurface* surface)
+           {
+               auto dialog = get_dialog(surface);
+               if(dialog == nullptr) {return CLOSE_DIALOG_STATUS::DO_NOTHING;}
+
+               auto rect = dialog->get_screen_rect();
+               dialog->set_attribution(static_cast<WINDOW_ATTRIBUTION>(0));
+               surface->show_layer(rect, static_cast<CoreSurface::Z_ORDER_LEVEL>(static_cast<std::underlying_type_t<CoreSurface::Z_ORDER_LEVEL>>(dialog->m_z_order) - 1));
+
+               // clear dialog
+               for(auto& each : s_m_dialogs)
+               {
+                   if(each.surface == surface)
+                   {
+                       each.dialog = nullptr;
+                       return CLOSE_DIALOG_STATUS::SUCCESS;
+                   }
+               }
+
+               GalAssert(false);
+               return CLOSE_DIALOG_STATUS::FAILED;
+           }
+
+           static CoreDialog* get_dialog(CoreSurface* surface)
+           {
+               for(auto& dialog : s_m_dialogs)
+               {
+                   if(dialog.surface == surface)
+                   {
+                       return dialog.dialog;
+                   }
+               }
+
+               return nullptr;
+           }
+
+       protected:
+           void pre_create_window() override
+           {
+               // No focus/visible
+               m_attribution = static_cast<WINDOW_ATTRIBUTION>(0);
+               m_z_order = CoreSurface::Z_ORDER_LEVEL::Z_ORDER_LEVEL_MIDDLE;
+               m_background_color = utility::build_rgb(33, 42, 53);
+           }
+
+           void on_paint() override
+           {
+               auto rect = get_screen_rect();
+               m_surface->fill_rect(rect, m_background_color, m_z_order);
+               if(m_str)
+               {
+                   CoreWord::draw_string(
+                           m_surface, m_z_order,
+                           m_str,
+                           rect.m_left + 35, rect.m_top,
+                           CoreTheme::get_font(CoreTheme::FONT_TYPE::FONT_DEFAULT),
+                           utility::build_rgb(255, 255, 255),
+                           utility::build_argb(0, 0, 0, 0),
+                           CoreWord::ALIGN_TYPE::HORIZONTAL_LEFT);
+               }
+           }
+
+       private:
+           SET_DIALOG_STATUS set_dialog()
+           {
+               auto surface = get_surface();
+               for(auto& dialog : s_m_dialogs)
+               {
+                   if(dialog.surface == surface)
+                   {
+                       dialog.dialog = this;
+                       return SET_DIALOG_STATUS::SET_DIALOG;
+                   }
+               }
+               for(auto& dialog : s_m_dialogs)
+               {
+                   if(dialog.surface == nullptr)
+                   {
+                       dialog.dialog = this;
+                       dialog.surface = surface;
+                       return SET_DIALOG_STATUS::SET_DIALOG_AND_SURFACE;
+                   }
+               }
+
+               GalAssert(false);
+               return SET_DIALOG_STATUS::FAILED;
+           }
+
+           static std::array<dialog_array, SurfaceCountMax> s_m_dialogs;
+       };
     }
 }
