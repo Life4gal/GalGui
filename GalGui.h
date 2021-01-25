@@ -3,6 +3,7 @@
 #include <functional>
 #include <numeric>
 #include <optional>
+#include <utility>
 #include <variant>
 #include <array>
 
@@ -2108,6 +2109,127 @@ namespace Gal {
            ColorType m_background_color;
            CoreSurface::Z_ORDER_LEVEL m_z_order;
            CoreSurface* m_surface;
+       };
+
+       class CoreButton : public CoreWindow
+       {
+       public:
+           void set_on_click(WindowCallback on_click) {this->m_on_click = std::move(on_click);}
+
+       protected:
+           void on_paint() override
+           {
+               auto rect = get_screen_rect();
+               auto drawer = [
+                   surface = m_surface, z_oder = m_z_order,
+                   str = m_str, rect = rect,
+                   font_type = m_font_type, font_color = m_font_color
+               ](ColorType background_color)
+               {
+                   return CoreWord::draw_string_in_rect(
+                           surface, z_oder,
+                           str, rect,
+                           font_type, font_color,
+                           background_color,
+                           static_cast<CoreWord::ALIGN_TYPE>(CoreWord::ALIGN_TYPE::HORIZONTAL_CENTER | CoreWord::ALIGN_TYPE::VERTICAL_CENTER)
+                           );
+               };
+
+               switch (m_status) {
+                   case CoreWindow::WINDOW_STATUS::NORMAL:
+                   {
+                       auto color = CoreTheme::get_color(CoreTheme::COLOR_TYPE::COLOR_WND_NORMAL);
+                       m_surface->fill_rect(rect, color, m_z_order);
+                       if(m_str)
+                       {
+                           drawer(color);
+                       }
+                       break;
+                   }
+                   case CoreWindow::WINDOW_STATUS::FOCUSED:
+                   {
+                       auto color = CoreTheme::get_color(CoreTheme::COLOR_TYPE::COLOR_WND_FOCUS);
+                       m_surface->fill_rect(rect, color, m_z_order);
+                       if(m_str)
+                       {
+                           drawer(color);
+                       }
+                       break;
+                   }
+                   case CoreWindow::WINDOW_STATUS::PUSHED:
+                   {
+                       auto color = CoreTheme::get_color(CoreTheme::COLOR_TYPE::COLOR_WND_PUSHED);
+                       m_surface->fill_rect(rect, color, m_z_order);
+                       m_surface->draw_rect(rect, CoreTheme::get_color(CoreTheme::COLOR_TYPE::COLOR_WND_BORDER), m_z_order, 2);
+                       if(m_str)
+                       {
+                           drawer(color);
+                       }
+                       break;
+                   }
+                   default:
+                       GalAssert(false);
+                       break;
+               }
+           }
+
+           void on_focus() override
+           {
+               m_status = CoreWindow::WINDOW_STATUS::FOCUSED;
+               on_paint();
+           }
+
+           void on_kill_focus() override
+           {
+               m_status = CoreWindow::WINDOW_STATUS::NORMAL;
+               on_paint();
+           }
+
+           void pre_create_window() override
+           {
+               m_on_click = nullptr;
+               m_attribution = static_cast<WINDOW_ATTRIBUTION>(WINDOW_ATTRIBUTION::VISIBLE | WINDOW_ATTRIBUTION::FOCUS);
+               m_font_type = CoreTheme::get_font(CoreTheme::FONT_TYPE::FONT_DEFAULT);
+               m_font_color = CoreTheme::get_color(CoreTheme::COLOR_TYPE::COLOR_WND_FONT);
+           }
+
+           void on_touch(int x, int y, TOUCH_ACTION action) override
+           {
+               if(action == CoreWindow::TOUCH_ACTION::DOWN)
+               {
+                   m_parent->set_child_focus(this);
+                   m_status = CoreWindow::WINDOW_STATUS::PUSHED;
+                   on_paint();
+               }
+               else
+               {
+                   m_status = CoreWindow::WINDOW_STATUS::FOCUSED;
+                   on_paint();
+                   if(m_on_click)
+                   {
+                       m_on_click(m_id, 0);
+                   }
+               }
+           }
+
+           void on_navigate(NAVIGATION_KEY key) override
+           {
+               switch (key) {
+                   case CoreWindow::NAVIGATION_KEY::ENTER:
+                   {
+                       auto x = m_window_rect.m_left;
+                       auto y = m_window_rect.m_top;
+                       on_touch(x, y, CoreWindow::TOUCH_ACTION::DOWN);
+                       on_touch(x, y, CoreWindow::TOUCH_ACTION::UP);
+                   }
+                   case CoreWindow::NAVIGATION_KEY::FORWARD:
+                   case CoreWindow::NAVIGATION_KEY::BACKWARD:
+                       break;
+               }
+               return CoreWindow::on_navigate(key);
+           }
+
+           WindowCallback m_on_click;
        };
     }
 }
