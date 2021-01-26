@@ -13,51 +13,83 @@
 #define GalAssert(condition) do{}while(0)
 
 namespace Gal {
-    using ColorType = unsigned int;
-
-    constexpr auto RealTimeTaskCycleMs              = 50;
-    constexpr auto QueueBufferMaxLength             = 1024;
-    constexpr auto SurfaceCountMax                  = 6;//root + pages
-    constexpr auto WordBufferLength                 = 16;
-    constexpr ColorType DefaultColorMask            = 0xFF080408;
-
     /*
-     * flag = enum1 | enum2
-     * if no exist enumerates equal flag, it will lose all data(it maybe equal to the first enumerate but no guarantee)
-     * so cast it's type to EnumType
-     */
-    template <typename Enum, typename EnumType = std::underlying_type_t<Enum>, typename = std::enable_if_t<std::is_enum_v<Enum>>, typename = std::enable_if_t<std::is_same_v<EnumType, std::underlying_type_t<Enum>>>>
-    constexpr EnumType operator|(const Enum& lhs, const Enum& rhs)
-    {
-        return static_cast<EnumType>(static_cast<EnumType>(lhs) | static_cast<EnumType>(rhs));
-    }
-
-    /*
-     * enum = flag1 | enum1
-     * usage:
-     *      if(flag1 | enum1 == ENUM::XXX){xxx;}
-     *      switch(flag1 | enum1){case ENUM:XXX: xxx;}
+     * <del>enum = flag1 | enum1</del>
+     * <del>usage:</del>
+     * <del>     if(flag1 | enum1 == ENUM::XXX){xxx;}</del>
+     * <del>     switch(flag1 | enum1){case ENUM:XXX: xxx;}</del>
      *
-     * note: if no exist enumerates equal flag, it will lose all data(it maybe equal to the first enumerate but no guarantee)
+     * <del>note: if no exist enumerates equal flag, it will lose all data(it maybe equal to the first enumerate but no guarantee)</del>
+     *
+     * flag = flag1 | enum1
+     * make return type to EnumType(which used to be Enum)
+     *
+     * usage:
+     *      EnumType flag = xxx;
+     *      ......
+     *      EnumType another_flag = flag | some_enum;
+     *
+     *      <del>std::array<T, (1 | EnumMax)> replace std::array<T, static_cast<size_t>(EnumMax)> also supported</del>
      */
     template <typename Enum, typename EnumType, typename = std::enable_if_t<std::is_enum_v<Enum>>, typename = std::enable_if_t<std::is_same_v<EnumType, std::underlying_type_t<Enum>>>>
-    constexpr Enum operator|(const EnumType& lhs, const Enum& rhs)
+    constexpr EnumType operator|(const EnumType& lhs, const Enum& rhs)
     {
-        return static_cast<Enum>(lhs | static_cast<EnumType>(rhs));
+        // using EnumType | EnumType
+        return static_cast<EnumType>(lhs | static_cast<EnumType>(rhs));
     }
 
     /*
-     * enum = enum1 | flag1
-     * usage:
-     *      if(enum1 | flag1 == ENUM::XXX){xxx;}
-     *      switch(enum1 | flag1){case ENUM:XXX: xxx;}
+     * <del>enum = enum1 | flag1</del>
+     * <del>usage:</del>
+     * <del>     if(enum1 | flag1 == ENUM::XXX){xxx;}</del>
+     * <del>     switch(enum1 | flag1){case ENUM:XXX: xxx;}</del>
      *
-     * note: if no exist enumerates equal flag, it will lose all data(it maybe equal to the first enumerate but no guarantee)
+     * <del>note: if no exist enumerates equal flag, it will lose all data(it maybe equal to the first enumerate but no guarantee)</del>
+     *
+     * enum = enum1 | flag1
+     * although the enum may not exist, but it will store it's data correctly by use it's underlying type
+     *
+     * usage:
+     *      Enum enum = xxx;
+     *      ......
+     *      Enum another_enum = enum | some_enum_type_val;
      */
     template <typename Enum, typename EnumType, typename = std::enable_if_t<std::is_enum_v<Enum>>, typename = std::enable_if_t<std::is_same_v<EnumType, std::underlying_type_t<Enum>>>>
     constexpr Enum operator|(const Enum& lhs, const EnumType& rhs)
     {
-        return static_cast<Enum>(static_cast<EnumType>(lhs) | rhs);
+        // forward to EnumType operator|(const EnumType& lhs, const Enum& rhs)
+        // forward is necessary ?
+        return static_cast<Enum>(std::forward<const EnumType&>(rhs) | std::forward<const Enum&>(lhs));
+    }
+
+    /*
+     * <del>flag = enum1 | enum2</del>
+     * <del>if no exist enumerates equal flag, it will lose all data(it maybe equal to the first enumerate but no guarantee)</del>
+     * <del>so cast it's type to EnumType</del>
+     *
+     * enum = enum1 | enum2
+     * although the enum may not exist, but it will store it's data correctly by use it's underlying type
+     * make return type to Enum(which used to be EnumType)
+     *
+     * usage:
+     *      void Foo(Enum arg);
+     *      call Foo(enum1 | enum2) -> (enum1 | enum2) <=> enum
+     *
+     *      void Bar(Enum arg)
+     *      {
+     *          switch(arg | EnumMask)
+     *          {
+     *              case enum1: xxx
+     *              case enum2: xxx
+     *              ...
+     *          }
+     *      }
+     */
+    template <typename Enum, typename EnumType = std::underlying_type_t<Enum>, typename = std::enable_if_t<std::is_enum_v<Enum>>, typename = std::enable_if_t<std::is_same_v<EnumType, std::underlying_type_t<Enum>>>>
+    constexpr Enum operator |(const Enum& lhs, const Enum& rhs)
+    {
+        // using EnumType | EnumType
+        return static_cast<Enum>(static_cast<EnumType>(lhs) | static_cast<EnumType>(rhs));
     }
 
     /*
@@ -68,46 +100,86 @@ namespace Gal {
     template <typename Enum, typename EnumType, typename = std::enable_if_t<std::is_enum_v<Enum>>, typename = std::enable_if_t<std::is_same_v<EnumType, std::underlying_type_t<Enum>>>>
     constexpr EnumType& operator|=(EnumType& lhs, const Enum& rhs)
     {
-        return (lhs = static_cast<EnumType>(lhs | static_cast<EnumType>(rhs)));
+        // forward to EnumType operator|(const EnumType& lhs, const Enum& rhs)
+        // forward is necessary ?
+        return (lhs = (std::forward<const EnumType&>(lhs) | std::forward<const Enum&>(rhs)));
     }
 
     /*
-     * flag = enum1 & enum2
-     * if no exist enumerates equal flag, it will lose all data(it maybe equal to the first enumerate but no guarantee)
-     * so cast it's type to EnumType
-     */
-    template <typename Enum, typename EnumType = std::underlying_type_t<Enum>, typename = std::enable_if_t<std::is_enum_v<Enum>>, typename = std::enable_if_t<std::is_same_v<EnumType, std::underlying_type_t<Enum>>>>
-    constexpr EnumType operator&(const Enum& lhs, const Enum& rhs)
-    {
-        return static_cast<EnumType>(static_cast<EnumType>(lhs) & static_cast<EnumType>(rhs));
-    }
-
-    /*
-     * enum = flag1 & enum1
-     * usage:
-     *      if(flag1 & enum1 == ENUM::XXX){xxx;}
-     *      switch(flag1 & enum1){case ENUM:XXX: xxx;}
+     * <del>enum = flag1 & enum1</del>
+     * <del>usage:</del>
+     * <del>     if(flag1 & enum1 == ENUM::XXX){xxx;}</del>
+     * <del>     switch(flag1 & enum1){case ENUM:XXX: xxx;}</del>
      *
-     * note: if no exist enumerates equal flag, it will lose all data(it maybe equal to the first enumerate but no guarantee)
+     * <del>note: if no exist enumerates equal flag, it will lose all data(it maybe equal to the first enumerate but no guarantee)</del>
+     *
+     * flag = flag1 & enum1
+     * make return type to EnumType(which used to be Enum)
+     *
+     * usage:
+     *      EnumType flag = xxx;
+     *      ......
+     *      EnumType another_flag = flag & some_enum;
      */
-    template <typename EnumType, typename Enum, typename = std::enable_if_t<std::is_enum_v<Enum>>, typename = std::enable_if_t<std::is_same_v<EnumType, std::underlying_type_t<Enum>>>>
-    constexpr Enum operator&(const EnumType& lhs, const Enum& rhs)
+    template <typename Enum, typename EnumType, typename = std::enable_if_t<std::is_enum_v<Enum>>, typename = std::enable_if_t<std::is_same_v<EnumType, std::underlying_type_t<Enum>>>>
+    constexpr EnumType operator&(const EnumType& lhs, const Enum& rhs)
     {
-        return static_cast<Enum>(lhs & static_cast<EnumType>(rhs));
+        // using EnumType & EnumType
+        return static_cast<EnumType>(lhs & static_cast<EnumType>(rhs));
     }
 
     /*
+     * <del>enum = enum1 & flag1</del>
+     * <del>usage:</del>
+     * <del>     if(enum1 & flag1 == ENUM::XXX){xxx;}</del>
+     * <del>     switch(enum1 & flag1){case ENUM:XXX: xxx;}</del>
+     *
+     * <del>note: if no exist enumerates equal flag, it will lose all data(it maybe equal to the first enumerate but no guarantee)</del>
+     *
      * enum = enum1 & flag1
-     * usage:
-     *      if(enum1 & flag1 == ENUM::XXX){xxx;}
-     *      switch(enum1 & flag1){case ENUM:XXX: xxx;}
+     * although the enum may not exist, but it will store it's data correctly by use it's underlying type
      *
-     * note: if no exist enumerates equal flag, it will lose all data(it maybe equal to the first enumerate but no guarantee)
+     * usage:
+     *      Enum enum = xxx;
+     *      ......
+     *      Enum another_enum = enum & some_enum_type_val;
      */
     template <typename Enum, typename EnumType, typename = std::enable_if_t<std::is_enum_v<Enum>>, typename = std::enable_if_t<std::is_same_v<EnumType, std::underlying_type_t<Enum>>>>
     constexpr Enum operator&(const Enum& lhs, const EnumType& rhs)
     {
-        return static_cast<Enum>(static_cast<EnumType>(lhs) & rhs);
+        // forward to EnumType operator&(const EnumType& lhs, const Enum& rhs)
+        // forward is necessary ?
+        return static_cast<Enum>(std::forward<const EnumType&>(rhs) & std::forward<const Enum&>(lhs));
+    }
+
+    /*
+     * <del>flag = enum1 & enum2</del>
+     * <del>if no exist enumerates equal flag, it will lose all data(it maybe equal to the first enumerate but no guarantee)</del>
+     * <del>so cast it's type to EnumType</del>
+     *
+     * enum = enum1 & enum2
+     * although the enum may not exist, but it will store it's data correctly by use it's underlying type
+     * make return type to Enum(which used to be EnumType)
+     *
+     * usage:
+     *      void Foo(Enum arg);
+     *      call Foo(enum1 | enum2) -> (enum1 | enum2) <=> enum
+     *
+     *      void Bar(Enum arg)
+     *      {
+     *          switch(arg & EnumMask)
+     *          {
+     *              case enum1: xxx
+     *              case enum2: xxx
+     *              ...
+     *          }
+     *      }
+     */
+    template <typename Enum, typename EnumType = std::underlying_type_t<Enum>, typename = std::enable_if_t<std::is_enum_v<Enum>>, typename = std::enable_if_t<std::is_same_v<EnumType, std::underlying_type_t<Enum>>>>
+    constexpr Enum operator&(const Enum& lhs, const Enum& rhs)
+    {
+        // using EnumType & EnumType
+        return static_cast<Enum>(static_cast<EnumType>(lhs) & static_cast<EnumType>(rhs));
     }
 
     /*
@@ -143,48 +215,40 @@ namespace Gal {
         template<typename T, typename = std::enable_if_t<std::numeric_limits<T>::is_integer>>
         constexpr decltype(auto) abs(const T& n)
         {
-            auto bit_length = sizeof(T) * 8;
+            // if T is not a integer type(like abs(1.1f)), it will not call this abs(invisible)
+            constexpr auto bit_length = sizeof(T) * 8;
             return (n ^ (n >> (bit_length - 1))) - (n >> (bit_length - 1));
         }
 
-        constexpr ColorType build_argb(ColorType alpha, ColorType red, ColorType green, ColorType blue) {
-            return (alpha << 24) | (red << 16) | (green << 8) | (blue << 0);
-        }
-
-        constexpr ColorType build_rgb(ColorType red, ColorType green, ColorType blue) {
-            return (red << 16) | (green << 8) | (blue << 0);
-        }
-
-        constexpr ColorType get_alpha_from_argb(ColorType argb) {
-            return (argb >> 24) & 0xFF;
-        }
-
-        constexpr ColorType get_red_from_argb(ColorType argb) {
-            return (argb >> 16) & 0xFF;
-        }
-
-        constexpr ColorType get_green_from_argb(ColorType argb) {
-            return (argb >> 8) & 0xFF;
-        }
-
-        constexpr ColorType get_blue_from_argb(ColorType argb) {
-            return (argb >> 0) & 0xFF;
-        }
-
-        constexpr ColorType rgb_convert_32_to_16(ColorType rgb) {
-            return ((rgb & 0xFF) >> 3) | ((rgb & 0xFC00) >> 5) | ((rgb & 0xF80000) >> 8);
-        }
-
-        constexpr ColorType rgb_convert_16_to_32(ColorType rgb) {
-            return (0xFF << 24) | ((rgb & 0x1F) << 3) | ((rgb & 0x7E0) << 5) | ((rgb & 0xF800) << 8);
-        }
-
+        // to-do
         int build_bitmap(const char* file_name, unsigned width, unsigned height, unsigned char* data);
 
         template<typename... Args>
         struct overloaded : Args... { using Args::operator()...; };
         template<typename... Args>
         overloaded(Args...) -> overloaded<Args...>;
+
+        /*
+         * (enum1 & enum2) == enum2 <=> EnumContains(enum1, enum2) == true
+         *
+         * determine whether enum1 contains enum2 or not
+         * because of operator&(const Enum& lhs, const Enum& rhs) return Enum
+         *
+         * to-do: check is a EnumContains(flag, enum1, enum2, enum3...) expression valid or not in edit time(not compile time)
+         *      such as: EnumContains(flag, enum1, enum2, 123)
+         */
+        template<typename Enum, typename... EnumPack, typename = std::enable_if_t<std::is_enum_v<Enum>>>
+        bool EnumContains(const Enum& enum1, const Enum& enum2, const EnumPack&... enums)
+        {
+            if constexpr (sizeof...(enums) == 0)
+            {
+                return (enum1 & enum2) == enum2;
+            }
+            else
+            {
+                return EnumContains(enum1, enums...);
+            }
+        }
     }
 
     namespace detail {
@@ -233,6 +297,49 @@ namespace Gal {
             int m_bottom;
         };
 
+    }
+
+    using ColorType = unsigned int;
+    constexpr ColorType DefaultColorMask            = 0xFF080408;
+
+    namespace utility{
+        constexpr ColorType build_argb(ColorType alpha, ColorType red, ColorType green, ColorType blue) {
+            return (alpha << 24) | (red << 16) | (green << 8) | (blue << 0);
+        }
+
+        constexpr ColorType build_rgb(ColorType red, ColorType green, ColorType blue) {
+            return (red << 16) | (green << 8) | (blue << 0);
+        }
+
+        constexpr ColorType get_alpha_from_argb(ColorType argb) {
+            return (argb >> 24) & 0xFF;
+        }
+
+        constexpr ColorType get_red_from_argb(ColorType argb) {
+            return (argb >> 16) & 0xFF;
+        }
+
+        constexpr ColorType get_green_from_argb(ColorType argb) {
+            return (argb >> 8) & 0xFF;
+        }
+
+        constexpr ColorType get_blue_from_argb(ColorType argb) {
+            return (argb >> 0) & 0xFF;
+        }
+
+        constexpr ColorType rgb_convert_32_to_16(ColorType rgb) {
+            return ((rgb & 0xFF) >> 3) | ((rgb & 0xFC00) >> 5) | ((rgb & 0xF80000) >> 8);
+        }
+
+        constexpr ColorType rgb_convert_16_to_32(ColorType rgb) {
+            return (0xFF << 24) | ((rgb & 0x1F) << 3) | ((rgb & 0x7E0) << 5) | ((rgb & 0xF800) << 8);
+        }
+    }
+
+    constexpr auto SurfaceCountMax                  = 6;//root + pages
+    constexpr auto WordBufferLength                 = 16;
+
+    namespace detail{
         enum class COLOR_BYTE_TYPE {
             BITS_16 = 2,
             BITS_32 = 4
@@ -244,23 +351,23 @@ namespace Gal {
         class CoreTheme {
         public:
             enum class FONT_TYPE {
-                FONT_NULL = 0,
-                FONT_DEFAULT,
-                FONT_CUSTOM,
-                FONT_MAX
+                NONE = 0,
+                DEFAULT,
+                CUSTOM,
+                MAX
             };
             enum class BITMAP_TYPE {
-                BITMAP_CUSTOM = 0,
+                CUSTOM = 0,
                 BITMAP_MAX
             };
             enum class COLOR_TYPE {
-                COLOR_WND_FONT = 0,
-                COLOR_WND_NORMAL,
-                COLOR_WND_PUSHED,
-                COLOR_WND_FOCUS,
-                COLOR_WND_BORDER,
-                COLOR_CUSTOM,
-                COLOR_MAX
+                WND_FONT = 0,
+                WND_NORMAL,
+                WND_PUSHED,
+                WND_FOCUS,
+                WND_BORDER,
+                CUSTOM,
+                MAX
             };
 
             struct bitmap_info {
@@ -283,7 +390,7 @@ namespace Gal {
             };
 
             static bool add_font(FONT_TYPE index, const font_info *font) {
-                if (index >= FONT_TYPE::FONT_MAX) {
+                if (index >= FONT_TYPE::MAX) {
                     GalAssert(false);
                     return false;
                 }
@@ -292,7 +399,7 @@ namespace Gal {
             }
 
             static const font_info *get_font(FONT_TYPE index) {
-                if (index >= FONT_TYPE::FONT_MAX) {
+                if (index >= FONT_TYPE::MAX) {
                     GalAssert(false);
                     return nullptr;
                 }
@@ -317,7 +424,7 @@ namespace Gal {
             }
 
             static bool add_color(COLOR_TYPE index, const ColorType color) {
-                if (index >= COLOR_TYPE::COLOR_MAX) {
+                if (index >= COLOR_TYPE::MAX) {
                     GalAssert(false);
                     return false;
                 }
@@ -326,7 +433,7 @@ namespace Gal {
             }
 
             static ColorType get_color(COLOR_TYPE index) {
-                if (index >= COLOR_TYPE::COLOR_MAX) {
+                if (index >= COLOR_TYPE::MAX) {
                     GalAssert(false);
                     return static_cast<ColorType>(-1);
                 }
@@ -334,9 +441,9 @@ namespace Gal {
             }
 
         private:
-            static std::array<const font_info *, static_cast<std::size_t>(FONT_TYPE::FONT_MAX)> s_font_map;
+            static std::array<const font_info *, static_cast<std::size_t>(FONT_TYPE::MAX)> s_font_map;
             static std::array<const bitmap_info *, static_cast<std::size_t>(BITMAP_TYPE::BITMAP_MAX)> s_bitmap_map;
-            static std::array<ColorType, static_cast<std::size_t>(COLOR_TYPE::COLOR_MAX)> s_color_map;
+            static std::array<ColorType, static_cast<std::size_t>(COLOR_TYPE::MAX)> s_color_map;
         };
 
         class CoreSurface {
@@ -344,14 +451,15 @@ namespace Gal {
 
         public:
             enum class Z_ORDER_LEVEL {
-                Z_ORDER_LEVEL_LOWEST,
-                Z_ORDER_LEVEL_MIDDLE,
-                Z_ORDER_LEVEL_HIGHEST,
-                Z_ORDER_LEVEL_MAX
+                LOWEST,
+                MIDDLE,
+                HIGHEST,
+                MAX
             };
 
             template<COLOR_BYTE_TYPE Bytes>
             using ColorByteType = std::conditional_t<Bytes == COLOR_BYTE_TYPE::BITS_16, B16ByteType, B32ByteType>;
+
             using B16ColorByteType = ColorByteType<COLOR_BYTE_TYPE::BITS_16>;
             using B32ColorByteType = ColorByteType<COLOR_BYTE_TYPE::BITS_32>;
             using FramebufferType = std::variant<B16ColorByteType *, B32ColorByteType *, std::nullptr_t>;
@@ -388,7 +496,7 @@ namespace Gal {
                 CoreSurface *alloc_surface(
                         Z_ORDER_LEVEL max_z_order,
                         CoreRect layer_rect = CoreRect()) {
-                    GalAssert(max_z_order < Z_ORDER_LEVEL_MAX && m_surface_index < m_surface_count);
+                    GalAssert(max_z_order < MAX && m_surface_index < m_surface_count);
                     GalAssert(!std::holds_alternative<std::nullptr_t>(m_physical_framebuffer));
 
                     COLOR_BYTE_TYPE bytes = std::holds_alternative<B16ColorByteType *>(m_physical_framebuffer) ? COLOR_BYTE_TYPE::BITS_16 : COLOR_BYTE_TYPE::BITS_32;
@@ -471,14 +579,14 @@ namespace Gal {
                     int width,
                     int height,
                     COLOR_BYTE_TYPE color_bytes,
-                    Z_ORDER_LEVEL max_z_order = Z_ORDER_LEVEL::Z_ORDER_LEVEL_LOWEST,
+                    Z_ORDER_LEVEL max_z_order = Z_ORDER_LEVEL::LOWEST,
                     CoreRect overlapped_rect = CoreRect())
                 : m_width(width),
                   m_height(height),
                   m_is_active(false),
                   m_max_z_order(max_z_order),
                   m_framebuffer(nullptr),
-                  m_top_z_order(Z_ORDER_LEVEL::Z_ORDER_LEVEL_LOWEST),
+                  m_top_z_order(Z_ORDER_LEVEL::LOWEST),
                   m_physical_framebuffer(nullptr),
                   m_physical_write_index(nullptr),
                   m_display(nullptr) {
@@ -496,7 +604,7 @@ namespace Gal {
             }
 
             ColorType get_pixel(int x, int y, Z_ORDER_LEVEL z_order) {
-                if (x >= m_width || y >= m_height || x < 0 || y < 0 || z_order >= Z_ORDER_LEVEL::Z_ORDER_LEVEL_MAX) {
+                if (x >= m_width || y >= m_height || x < 0 || y < 0 || z_order >= Z_ORDER_LEVEL::MAX) {
                     GalAssert(false);
                     return static_cast<ColorType>(-1);
                 }
@@ -542,7 +650,7 @@ namespace Gal {
                 }
 
                 bool be_overlapped = false;
-                for (auto tmp_z_order = static_cast<size_t>(Z_ORDER_LEVEL::Z_ORDER_LEVEL_MAX) - 1; tmp_z_order > static_cast<size_t>(z_order); --tmp_z_order) {
+                for (auto tmp_z_order = static_cast<size_t>(Z_ORDER_LEVEL::MAX) - 1; tmp_z_order > static_cast<size_t>(z_order); --tmp_z_order) {
                     if (m_layers[tmp_z_order].rect.is_in_rect(x, y)) {
                         be_overlapped = true;
                         break;
@@ -699,7 +807,7 @@ namespace Gal {
             }
 
             void show_layer(CoreRect &rect, CoreSurface::Z_ORDER_LEVEL z_order) {
-                GalAssert(z_order >= Z_ORDER_LEVEL_LOWEST && z_order < Z_ORDER_LEVEL_MAX);
+                GalAssert(z_order >= LOWEST && z_order < MAX);
                 auto layer = m_layers[static_cast<size_t>(z_order)];
                 auto layer_rect = layer.rect;
                 GalAssert(rect.m_left >= layer_rect.m_left && rect.m_right <= layer_rect.m_right &&
@@ -810,7 +918,7 @@ namespace Gal {
                 if (m_display && (m_display->m_surface_count > 1)) {
                     malloc_buffer(m_framebuffer);
                 }
-                for (auto i = static_cast<size_t>(Z_ORDER_LEVEL::Z_ORDER_LEVEL_LOWEST); i < static_cast<size_t>(Z_ORDER_LEVEL::Z_ORDER_LEVEL_MAX); ++i) {
+                for (auto i = static_cast<size_t>(Z_ORDER_LEVEL::LOWEST); i < static_cast<size_t>(Z_ORDER_LEVEL::MAX); ++i) {
                     // top layer framebuffer always be o
                     auto p = malloc_buffer(m_layers[i].framebuffer);
                     GalAssert(p != nullptr);
@@ -821,7 +929,7 @@ namespace Gal {
             unsigned int m_width;
             unsigned int m_height;
             FramebufferType m_framebuffer;
-            std::array<CoreLayer, static_cast<size_t>(Z_ORDER_LEVEL::Z_ORDER_LEVEL_MAX)> m_layers;
+            std::array<CoreLayer, static_cast<size_t>(Z_ORDER_LEVEL::MAX)> m_layers;
             bool m_is_active;
             Z_ORDER_LEVEL m_max_z_order;
             Z_ORDER_LEVEL m_top_z_order;
@@ -858,7 +966,7 @@ namespace Gal {
                     int height,
                     COLOR_BYTE_TYPE color_bytes,
                     CoreSurface::external_gfx_operator *gfx_operator,
-                    CoreSurface::Z_ORDER_LEVEL max_z_order = CoreSurface::Z_ORDER_LEVEL::Z_ORDER_LEVEL_LOWEST,
+                    CoreSurface::Z_ORDER_LEVEL max_z_order = CoreSurface::Z_ORDER_LEVEL::LOWEST,
                     CoreRect overlapped_rect = CoreRect())
                 : CoreSurface(width, height, color_bytes, max_z_order, overlapped_rect), m_gfx_operator(gfx_operator){};
 
@@ -1263,8 +1371,6 @@ namespace Gal {
             }
 
             static void get_string_position(const char *str, const CoreTheme::font_info *font, CoreRect rect, ALIGN_TYPE align_type, int &x, int &y) {
-                auto _align_type = static_cast<std::underlying_type_t<ALIGN_TYPE>>(align_type);
-
                 int x_size;
                 int y_size;
                 get_str_size(str, font, x_size, y_size);
@@ -1273,7 +1379,7 @@ namespace Gal {
                 x = 0;
                 y = 0;
 
-                switch (_align_type & ALIGN_TYPE::HORIZONTAL_MASK) {
+                switch (align_type & ALIGN_TYPE::HORIZONTAL_MASK) {
                     case ALIGN_TYPE::HORIZONTAL_CENTER:
                         if (width > x_size) {
                             x = (width - x_size) / 2;
@@ -1291,7 +1397,7 @@ namespace Gal {
                         GalAssert(false);
                         break;
                 }
-                switch (_align_type & ALIGN_TYPE::VERTICAL_MASK) {
+                switch (align_type & ALIGN_TYPE::VERTICAL_MASK) {
                     case ALIGN_TYPE::VERTICAL_CENTER:
                         if (height > y_size) {
                             y = (height - y_size) / 2;
@@ -1362,7 +1468,7 @@ namespace Gal {
                     int x, int y,
                     ColorType mask_rgb = DefaultColorMask) {
                 GalAssert(bitmap);
-                GalAssert(z_order >= CoreSurface::Z_ORDER_LEVEL::Z_ORDER_LEVEL_MIDDLE);
+                GalAssert(z_order >= CoreSurface::Z_ORDER_LEVEL::MIDDLE);
 
                 auto layer = surface->m_layers[static_cast<size_t>(z_order) - 1];
                 auto lower_framebuffer_rect = layer.rect;
@@ -1397,7 +1503,7 @@ namespace Gal {
                     ColorType mask_rgb = DefaultColorMask) {
                 if (bitmap == nullptr || (source_x + width > bitmap->width) || (source_y + height > bitmap->height)) { return; }
 
-                GalAssert(z_order >= CoreSurface::Z_ORDER_LEVEL::Z_ORDER_LEVEL_MIDDLE);
+                GalAssert(z_order >= CoreSurface::Z_ORDER_LEVEL::MIDDLE);
 
                 auto layer = surface->m_layers[static_cast<size_t>(z_order) - 1];
                 auto lower_framebuffer_rect = layer.rect;
@@ -1470,7 +1576,8 @@ namespace Gal {
 //            template<typename Enum, typename = std::enable_if<std::is_enum_v<Enum>>>
 //            using WindowCallback = std::function<void(IdType, Enum)>;
             // to-do, wrap it
-            using WindowCallback = void(CoreWindow::*)(IdType, int);
+            using WindowCallbackEnumType = int;
+            using WindowCallback = void(CoreWindow::*)(IdType, WindowCallbackEnumType);
 
             struct window_tree {
                 CoreWindow *window;//window instance
@@ -1485,7 +1592,7 @@ namespace Gal {
 
             CoreWindow()
                 : m_status(WINDOW_STATUS::NORMAL),
-                  m_attribution(static_cast<WINDOW_ATTRIBUTION>(WINDOW_ATTRIBUTION::VISIBLE | WINDOW_ATTRIBUTION::FOCUS)),
+                  m_attribution(WINDOW_ATTRIBUTION::VISIBLE | WINDOW_ATTRIBUTION::FOCUS),
                   m_parent(nullptr),
                   m_top_child(nullptr),
                   m_prev_sibling(nullptr),
@@ -1495,7 +1602,7 @@ namespace Gal {
                   m_font_color(0),
                   m_background_color(0),
                   m_id(s_id_not_used),
-                  m_z_order(CoreSurface::Z_ORDER_LEVEL::Z_ORDER_LEVEL_LOWEST),
+                  m_z_order(CoreSurface::Z_ORDER_LEVEL::LOWEST),
                   m_focus_child(nullptr),
                   m_surface(nullptr){};
 
@@ -1557,7 +1664,7 @@ namespace Gal {
             virtual void on_init_children(){};
             virtual void on_paint(){};
             virtual void show_window() {
-                if ((m_attribution & WINDOW_ATTRIBUTION::VISIBLE) == static_cast<std::underlying_type_t<WINDOW_ATTRIBUTION>>(WINDOW_ATTRIBUTION::VISIBLE)) {
+                if (utility::EnumContains(m_attribution, WINDOW_ATTRIBUTION::VISIBLE)) {
                     on_paint();
                     auto child = m_top_child;
                     if (child != nullptr) {
@@ -1591,7 +1698,7 @@ namespace Gal {
             void set_attribution(WINDOW_ATTRIBUTION attribution) { m_attribution = attribution; }
 
             [[nodiscard]] bool is_focus_window() const {
-                return ((m_attribution & WINDOW_ATTRIBUTION::VISIBLE) && (m_attribution & WINDOW_ATTRIBUTION::FOCUS));
+                return utility::EnumContains(m_attribution, WINDOW_ATTRIBUTION::VISIBLE, WINDOW_ATTRIBUTION::FOCUS);
             }
 
             void set_font_color(ColorType color) { m_font_color = color; }
@@ -1695,7 +1802,7 @@ namespace Gal {
                 CoreWindow *tmp_child = m_top_child;
 
                 while (tmp_child) {
-                    if (auto attr = tmp_child->m_attribution; (attr & WINDOW_ATTRIBUTION::PRIORITY) && (attr & WINDOW_ATTRIBUTION::VISIBLE)) {
+                    if (auto attr = tmp_child->m_attribution; utility::EnumContains(attr, WINDOW_ATTRIBUTION::PRIORITY, WINDOW_ATTRIBUTION::VISIBLE)) {
                         priority_window = tmp_child;
                         break;
                     }
@@ -1720,7 +1827,7 @@ namespace Gal {
                 CoreWindow *priority_window = nullptr;
                 auto tmp_child = m_top_child;
                 while (tmp_child) {
-                    if (auto attr = tmp_child->m_attribution; (attr & WINDOW_ATTRIBUTION::PRIORITY) && (attr & WINDOW_ATTRIBUTION::VISIBLE)) {
+                    if (auto attr = tmp_child->m_attribution; utility::EnumContains(attr, WINDOW_ATTRIBUTION::PRIORITY, WINDOW_ATTRIBUTION::VISIBLE)) {
                         priority_window = tmp_child;
                         break;
                     }
@@ -1870,7 +1977,7 @@ namespace Gal {
 
                 switch (m_status) {
                     case CoreWindow::WINDOW_STATUS::NORMAL: {
-                        auto color = CoreTheme::get_color(CoreTheme::COLOR_TYPE::COLOR_WND_NORMAL);
+                        auto color = CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_NORMAL);
                         m_surface->fill_rect(rect, color, m_z_order);
                         if (m_str) {
                             drawer(color);
@@ -1878,7 +1985,7 @@ namespace Gal {
                         break;
                     }
                     case CoreWindow::WINDOW_STATUS::FOCUSED: {
-                        auto color = CoreTheme::get_color(CoreTheme::COLOR_TYPE::COLOR_WND_FOCUS);
+                        auto color = CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_FOCUS);
                         m_surface->fill_rect(rect, color, m_z_order);
                         if (m_str) {
                             drawer(color);
@@ -1886,9 +1993,9 @@ namespace Gal {
                         break;
                     }
                     case CoreWindow::WINDOW_STATUS::PUSHED: {
-                        auto color = CoreTheme::get_color(CoreTheme::COLOR_TYPE::COLOR_WND_PUSHED);
+                        auto color = CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_PUSHED);
                         m_surface->fill_rect(rect, color, m_z_order);
-                        m_surface->draw_rect(rect, CoreTheme::get_color(CoreTheme::COLOR_TYPE::COLOR_WND_BORDER), m_z_order, 2);
+                        m_surface->draw_rect(rect, CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_BORDER), m_z_order, 2);
                         if (m_str) {
                             drawer(color);
                         }
@@ -1913,8 +2020,8 @@ namespace Gal {
             void pre_create_window() override {
                 m_on_click = nullptr;
                 m_attribution = static_cast<WINDOW_ATTRIBUTION>(WINDOW_ATTRIBUTION::VISIBLE | WINDOW_ATTRIBUTION::FOCUS);
-                m_font_type = CoreTheme::get_font(CoreTheme::FONT_TYPE::FONT_DEFAULT);
-                m_font_color = CoreTheme::get_color(CoreTheme::COLOR_TYPE::COLOR_WND_FONT);
+                m_font_type = CoreTheme::get_font(CoreTheme::FONT_TYPE::DEFAULT);
+                m_font_color = CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_FONT);
             }
 
             void on_touch(int x, int y, TOUCH_ACTION action) override {
@@ -2026,7 +2133,7 @@ namespace Gal {
             void pre_create_window() override {
                 // No focus/visible
                 m_attribution = static_cast<WINDOW_ATTRIBUTION>(0);
-                m_z_order = CoreSurface::Z_ORDER_LEVEL::Z_ORDER_LEVEL_MIDDLE;
+                m_z_order = CoreSurface::Z_ORDER_LEVEL::MIDDLE;
                 m_background_color = utility::build_rgb(33, 42, 53);
             }
 
@@ -2038,7 +2145,7 @@ namespace Gal {
                             m_surface, m_z_order,
                             m_str,
                             rect.m_left + 35, rect.m_top,
-                            CoreTheme::get_font(CoreTheme::FONT_TYPE::FONT_DEFAULT),
+                            CoreTheme::get_font(CoreTheme::FONT_TYPE::DEFAULT),
                             utility::build_rgb(255, 255, 255),
                             utility::build_argb(0, 0, 0, 0),
                             CoreWord::ALIGN_TYPE::HORIZONTAL_LEFT);
@@ -2161,22 +2268,23 @@ namespace Gal {
 
     namespace detail{
 
+        class CoreKeyboardButton;
         class CoreKeyboard : public CoreWindow
         {
         public:
-            enum class KEYBOARD_CASE
+            enum class KEYBOARD_CASE : WindowCallbackEnumType
             {
                 UPPERCASE,
                 LOWERCASE
             };
 
-            enum class KEYBOARD_BOARD
+            enum class KEYBOARD_BOARD : WindowCallbackEnumType
             {
                 ALL,
                 NUM_ONLY
             };
 
-            enum class KEYBOARD_CLICK
+            enum class KEYBOARD_CLICK : WindowCallbackEnumType
             {
                 CHARACTER,
                 ENTER,
@@ -2204,6 +2312,15 @@ namespace Gal {
 
             void set_on_click(WindowCallback on_click) {m_on_click = on_click;}
 
+            static CoreKeyboardButton s_key_0, s_key_1, s_key_2, s_key_3, s_key_4, s_key_5, s_key_6, s_key_7, s_key_8, s_key_9;
+            static CoreKeyboardButton s_key_a, s_key_b, s_key_c, s_key_d, s_key_e, s_key_f, s_key_g, s_key_h, s_key_i, s_key_j;
+            static CoreKeyboardButton s_key_k, s_key_l, s_key_m, s_key_n, s_key_o, s_key_p, s_key_q, s_key_r, s_key_s, s_key_t;
+            static CoreKeyboardButton s_key_u, s_key_v, s_key_w, s_key_x, s_key_y, s_key_z;
+            static CoreKeyboardButton s_key_dot, s_key_caps, s_key_space, s_key_enter, s_key_del, s_key_esc, s_key_num_switch;
+            static CoreWindow::window_tree s_keyboard_tree[34];
+            static CoreWindow::window_tree s_numpad_tree[15];
+
+
         protected:
             void pre_create_window() override
             {
@@ -2219,7 +2336,7 @@ namespace Gal {
                 m_surface->fill_rect(rect, utility::build_rgb(0, 0, 0), m_z_order);
             }
 
-            void on_key_clicked(IdType id, int param)
+            void on_key_clicked(IdType id, WindowCallbackEnumType param)
             {
                 switch(id)
                 {
@@ -2241,7 +2358,7 @@ namespace Gal {
                 }
             }
 
-            void on_char_clicked(IdType id, int param)
+            void on_char_clicked(IdType id, WindowCallbackEnumType param)
             {
                 //id = char ascii code
                 if(m_str_length >= sizeof(m_str)) {return;}
@@ -2249,7 +2366,7 @@ namespace Gal {
                 auto input_char = [&]()
                 {
                   m_str[m_str_length++] = id;
-                  (m_parent->*m_on_click)(m_id, static_cast<int>(KEYBOARD_CLICK::CHARACTER));
+                  (m_parent->*m_on_click)(m_id, static_cast<WindowCallbackEnumType>(KEYBOARD_CLICK::CHARACTER));
                 };
                 if((id >= Num0Id && id <= Num9Id) || id == SpaceId || id == DotId)
                 {
@@ -2266,30 +2383,30 @@ namespace Gal {
                 GalAssert(false);
             }
 
-            void on_del_clicked(IdType id, int param)
+            void on_del_clicked(IdType id, WindowCallbackEnumType param)
             {
                 if(m_str_length <= 0) {return;}
 
                 m_str[--m_str_length] = 0;
-                (m_parent->*m_on_click)(m_id, static_cast<int>(KEYBOARD_CLICK::CHARACTER));
+                (m_parent->*m_on_click)(m_id, static_cast<WindowCallbackEnumType>(KEYBOARD_CLICK::CHARACTER));
             }
 
-            void on_caps_clicked(IdType id, int param)
+            void on_caps_clicked(IdType id, WindowCallbackEnumType param)
             {
                 m_cap_status = (m_cap_status == KEYBOARD_CASE::LOWERCASE) ? KEYBOARD_CASE::UPPERCASE : KEYBOARD_CASE::LOWERCASE;
                 show_window();
             }
 
-            void on_enter_clicked(IdType id, int param)
+            void on_enter_clicked(IdType id, WindowCallbackEnumType param)
             {
                 std::memset(m_str, 0, sizeof(m_str));
-                (m_parent->*m_on_click)(m_id, static_cast<int>(KEYBOARD_CLICK::ENTER));
+                (m_parent->*m_on_click)(m_id, static_cast<WindowCallbackEnumType>(KEYBOARD_CLICK::ENTER));
             }
 
-            void on_esc_clicked(IdType id, int param)
+            void on_esc_clicked(IdType id, WindowCallbackEnumType param)
             {
                 std::memset(m_str, 0, sizeof(m_str));
-                (m_parent->*m_on_click)(m_id, static_cast<int>(KEYBOARD_CLICK::ESCAPE));
+                (m_parent->*m_on_click)(m_id, static_cast<WindowCallbackEnumType>(KEYBOARD_CLICK::ESCAPE));
             }
 
         private:
@@ -2307,14 +2424,14 @@ namespace Gal {
                 auto rect = get_screen_rect();
                 switch (m_status) {
                     case CoreWindow::WINDOW_STATUS::NORMAL:
-                        m_surface->fill_rect(rect, CoreTheme::get_color(CoreTheme::COLOR_TYPE::COLOR_WND_NORMAL), m_z_order);
+                        m_surface->fill_rect(rect, CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_NORMAL), m_z_order);
                         break;
                     case CoreWindow::WINDOW_STATUS::FOCUSED:
-                        m_surface->fill_rect(rect, CoreTheme::get_color(CoreTheme::COLOR_TYPE::COLOR_WND_FOCUS), m_z_order);
+                        m_surface->fill_rect(rect, CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_FOCUS), m_z_order);
                         break;
                     case CoreWindow::WINDOW_STATUS::PUSHED:
-                        m_surface->fill_rect(rect, CoreTheme::get_color(CoreTheme::COLOR_TYPE::COLOR_WND_PUSHED), m_z_order);
-                        m_surface->draw_rect(rect, CoreTheme::get_color(CoreTheme::COLOR_TYPE::COLOR_WND_BORDER), m_z_order, 2);
+                        m_surface->fill_rect(rect, CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_PUSHED), m_z_order);
+                        m_surface->draw_rect(rect, CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_BORDER), m_z_order, 2);
                         break;
                     default:
                         GalAssert(false);
@@ -2370,78 +2487,68 @@ namespace Gal {
                 CoreWord::draw_string_in_rect(m_surface, m_z_order, reinterpret_cast<const char*>(letter), rect, m_font_type, m_font_color, utility::build_argb(0, 0, 0, 0));
             }
         };
-    }
 
-    namespace utility {
-        static detail::CoreKeyboardButton s_key_0, s_key_1, s_key_2, s_key_3, s_key_4, s_key_5, s_key_6, s_key_7, s_key_8, s_key_9;
-        static detail::CoreKeyboardButton s_key_a, s_key_b, s_key_c, s_key_d, s_key_e, s_key_f, s_key_g, s_key_h, s_key_i, s_key_j;
-        static detail::CoreKeyboardButton s_key_k, s_key_l, s_key_m, s_key_n, s_key_o, s_key_p, s_key_q, s_key_r, s_key_s, s_key_t;
-        static detail::CoreKeyboardButton s_key_u, s_key_v, s_key_w, s_key_x, s_key_y, s_key_z;
-        static detail::CoreKeyboardButton s_key_dot, s_key_caps, s_key_space, s_key_enter, s_key_del, s_key_esc, s_key_num_switch;
-        detail::CoreWindow::window_tree g_keyboard_tree[] =
+        CoreWindow::window_tree CoreKeyboard::s_keyboard_tree[] = /* NOLINT */
         {
-                        //Row 1
-                        {&s_key_q, 'Q', nullptr, get_x_in_keyboard(0), get_y_in_keyboard(0), KeyWidth, KeyHeight},
-                        {&s_key_w, 'W', nullptr, get_x_in_keyboard(1), get_y_in_keyboard(0), KeyWidth, KeyHeight},
-                        {&s_key_e, 'E', nullptr, get_x_in_keyboard(2), get_y_in_keyboard(0), KeyWidth, KeyHeight},
-                        {&s_key_r, 'R', nullptr, get_x_in_keyboard(3), get_y_in_keyboard(0), KeyWidth, KeyHeight},
-                        {&s_key_t, 'T', nullptr, get_x_in_keyboard(4), get_y_in_keyboard(0), KeyWidth, KeyHeight},
-                        {&s_key_y, 'Y', nullptr, get_x_in_keyboard(5), get_y_in_keyboard(0), KeyWidth, KeyHeight},
-                        {&s_key_u, 'U', nullptr, get_x_in_keyboard(6), get_y_in_keyboard(0), KeyWidth, KeyHeight},
-                        {&s_key_i, 'I', nullptr, get_x_in_keyboard(7), get_y_in_keyboard(0), KeyWidth, KeyHeight},
-                        {&s_key_o, 'O', nullptr, get_x_in_keyboard(8), get_y_in_keyboard(0), KeyWidth, KeyHeight},
-                        {&s_key_p, 'P', nullptr, get_x_in_keyboard(9), get_y_in_keyboard(0), KeyWidth, KeyHeight},
-                        //Row 2
-                        {&s_key_a, 'A', nullptr, get_x_in_keyboard(0) + (KeyWidth / 2), get_y_in_keyboard(1), KeyWidth, KeyHeight},
-                        {&s_key_s, 'S', nullptr, get_x_in_keyboard(1) + (KeyWidth / 2), get_y_in_keyboard(1), KeyWidth, KeyHeight},
-                        {&s_key_d, 'D', nullptr, get_x_in_keyboard(2) + (KeyWidth / 2), get_y_in_keyboard(1), KeyWidth, KeyHeight},
-                        {&s_key_f, 'F', nullptr, get_x_in_keyboard(3) + (KeyWidth / 2), get_y_in_keyboard(1), KeyWidth, KeyHeight},
-                        {&s_key_g, 'G', nullptr, get_x_in_keyboard(4) + (KeyWidth / 2), get_y_in_keyboard(1), KeyWidth, KeyHeight},
-                        {&s_key_h, 'H', nullptr, get_x_in_keyboard(5) + (KeyWidth / 2), get_y_in_keyboard(1), KeyWidth, KeyHeight},
-                        {&s_key_j, 'J', nullptr, get_x_in_keyboard(6) + (KeyWidth / 2), get_y_in_keyboard(1), KeyWidth, KeyHeight},
-                        {&s_key_k, 'K', nullptr, get_x_in_keyboard(7) + (KeyWidth / 2), get_y_in_keyboard(1), KeyWidth, KeyHeight},
-                        {&s_key_l, 'L', nullptr, get_x_in_keyboard(8) + (KeyWidth / 2), get_y_in_keyboard(1), KeyWidth, KeyHeight},
-                        //Row 3
-                        {&s_key_caps, CapsId, nullptr, get_x_in_keyboard(0), get_y_in_keyboard(2), CapsWidth, KeyHeight},
-                        {&s_key_z, 'Z', nullptr, get_x_in_keyboard(1) + (KeyWidth / 2), get_y_in_keyboard(2), KeyWidth, KeyHeight},
-                        {&s_key_x, 'X', nullptr, get_x_in_keyboard(2) + (KeyWidth / 2), get_y_in_keyboard(2), KeyWidth, KeyHeight},
-                        {&s_key_c, 'C', nullptr, get_x_in_keyboard(3) + (KeyWidth / 2), get_y_in_keyboard(2), KeyWidth, KeyHeight},
-                        {&s_key_v, 'V', nullptr, get_x_in_keyboard(4) + (KeyWidth / 2), get_y_in_keyboard(2), KeyWidth, KeyHeight},
-                        {&s_key_b, 'B', nullptr, get_x_in_keyboard(5) + (KeyWidth / 2), get_y_in_keyboard(2), KeyWidth, KeyHeight},
-                        {&s_key_n, 'N', nullptr, get_x_in_keyboard(6) + (KeyWidth / 2), get_y_in_keyboard(2), KeyWidth, KeyHeight},
-                        {&s_key_m, 'M', nullptr, get_x_in_keyboard(7) + (KeyWidth / 2), get_y_in_keyboard(2), KeyWidth, KeyHeight},
-                        {&s_key_del, DelId, nullptr, get_x_in_keyboard(8) + (KeyWidth / 2), get_y_in_keyboard(2), DelWidth, KeyHeight},
-                        //Row 4
-                        {&s_key_esc, EscId, nullptr, get_x_in_keyboard(0), get_y_in_keyboard(3), EscWidth, KeyHeight},
-                        {&s_key_num_switch, NumSwitchId, nullptr, get_x_in_keyboard(2), get_y_in_keyboard(3), SwitchWidth, KeyHeight},
-                        {&s_key_space, SpaceId, nullptr, get_x_in_keyboard(3) + (KeyWidth / 2), get_y_in_keyboard(3), SpaceWidth, KeyHeight},
-                        {&s_key_dot, DotId, nullptr, get_x_in_keyboard(6) + (KeyWidth / 2), get_y_in_keyboard(3), DotWidth, KeyHeight},
-                        {&s_key_enter, EnterId, nullptr, get_x_in_keyboard(8), get_y_in_keyboard(3), EnterWidth, KeyHeight},
-                        {nullptr, 0, nullptr, 0, 0, 0, 0}
-        };
-
-        detail::CoreWindow::window_tree g_numpad_tree[] =
-        {
-                {&s_key_1, '1', nullptr, get_x_in_keyboard(0), get_y_in_keyboard(0), KeyWidth, KeyWidth},
-                {&s_key_2, '2', nullptr, get_x_in_keyboard(1), get_y_in_keyboard(0), KeyWidth, KeyWidth},
-                {&s_key_3, '3', nullptr, get_x_in_keyboard(2), get_y_in_keyboard(0), KeyWidth, KeyWidth},
-                {&s_key_4, '4', nullptr, get_x_in_keyboard(0), get_y_in_keyboard(1), KeyWidth, KeyWidth},
-                {&s_key_5, '5', nullptr, get_x_in_keyboard(1), get_y_in_keyboard(1), KeyWidth, KeyWidth},
-                {&s_key_6, '6', nullptr, get_x_in_keyboard(2), get_y_in_keyboard(1), KeyWidth, KeyWidth},
-                {&s_key_7, '7', nullptr, get_x_in_keyboard(0), get_y_in_keyboard(2), KeyWidth, KeyWidth},
-                {&s_key_8, '8', nullptr, get_x_in_keyboard(1), get_y_in_keyboard(2), KeyWidth, KeyWidth},
-                {&s_key_9, '9', nullptr, get_x_in_keyboard(2), get_y_in_keyboard(2), KeyWidth, KeyWidth},
-
-                {&s_key_esc, EscId, nullptr, get_x_in_keyboard(0), get_y_in_keyboard(3), KeyWidth, KeyHeight},
-                {&s_key_0, '0', nullptr, get_x_in_keyboard(1), get_y_in_keyboard(3), KeyWidth, KeyHeight},
-                {&s_key_dot, DotId, nullptr, get_x_in_keyboard(2), get_y_in_keyboard(3), KeyWidth, KeyHeight},
-                {&s_key_del, DelId, nullptr, get_x_in_keyboard(3), get_y_in_keyboard(0), KeyWidth, KeyHeight * 2 + 2},
-                {&s_key_enter, EnterId, nullptr, get_x_in_keyboard(3), get_y_in_keyboard(2), KeyWidth, KeyHeight * 2 + 2},
+                //Row 1
+                {&CoreKeyboard::s_key_q, 'Q', nullptr, utility::get_x_in_keyboard(0), utility::get_y_in_keyboard(0), KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_w, 'W', nullptr, utility::get_x_in_keyboard(1), utility::get_y_in_keyboard(0), KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_e, 'E', nullptr, utility::get_x_in_keyboard(2), utility::get_y_in_keyboard(0), KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_r, 'R', nullptr, utility::get_x_in_keyboard(3), utility::get_y_in_keyboard(0), KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_t, 'T', nullptr, utility::get_x_in_keyboard(4), utility::get_y_in_keyboard(0), KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_y, 'Y', nullptr, utility::get_x_in_keyboard(5), utility::get_y_in_keyboard(0), KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_u, 'U', nullptr, utility::get_x_in_keyboard(6), utility::get_y_in_keyboard(0), KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_i, 'I', nullptr, utility::get_x_in_keyboard(7), utility::get_y_in_keyboard(0), KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_o, 'O', nullptr, utility::get_x_in_keyboard(8), utility::get_y_in_keyboard(0), KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_p, 'P', nullptr, utility::get_x_in_keyboard(9), utility::get_y_in_keyboard(0), KeyWidth, KeyHeight},
+                //Row 2
+                {&CoreKeyboard::s_key_a, 'A', nullptr, utility::get_x_in_keyboard(0) + (KeyWidth / 2), utility::get_y_in_keyboard(1), KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_s, 'S', nullptr, utility::get_x_in_keyboard(1) + (KeyWidth / 2), utility::get_y_in_keyboard(1), KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_d, 'D', nullptr, utility::get_x_in_keyboard(2) + (KeyWidth / 2), utility::get_y_in_keyboard(1), KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_f, 'F', nullptr, utility::get_x_in_keyboard(3) + (KeyWidth / 2), utility::get_y_in_keyboard(1), KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_g, 'G', nullptr, utility::get_x_in_keyboard(4) + (KeyWidth / 2), utility::get_y_in_keyboard(1), KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_h, 'H', nullptr, utility::get_x_in_keyboard(5) + (KeyWidth / 2), utility::get_y_in_keyboard(1), KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_j, 'J', nullptr, utility::get_x_in_keyboard(6) + (KeyWidth / 2), utility::get_y_in_keyboard(1), KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_k, 'K', nullptr, utility::get_x_in_keyboard(7) + (KeyWidth / 2), utility::get_y_in_keyboard(1), KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_l, 'L', nullptr, utility::get_x_in_keyboard(8) + (KeyWidth / 2), utility::get_y_in_keyboard(1), KeyWidth, KeyHeight},
+                //Row 3
+                {&CoreKeyboard::s_key_caps, CapsId, nullptr, utility::get_x_in_keyboard(0), utility::get_y_in_keyboard(2), CapsWidth, KeyHeight},
+                {&CoreKeyboard::s_key_z, 'Z', nullptr, utility::get_x_in_keyboard(1) + (KeyWidth / 2), utility::get_y_in_keyboard(2), KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_x, 'X', nullptr, utility::get_x_in_keyboard(2) + (KeyWidth / 2), utility::get_y_in_keyboard(2), KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_c, 'C', nullptr, utility::get_x_in_keyboard(3) + (KeyWidth / 2), utility::get_y_in_keyboard(2), KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_v, 'V', nullptr, utility::get_x_in_keyboard(4) + (KeyWidth / 2), utility::get_y_in_keyboard(2), KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_b, 'B', nullptr, utility::get_x_in_keyboard(5) + (KeyWidth / 2), utility::get_y_in_keyboard(2), KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_n, 'N', nullptr, utility::get_x_in_keyboard(6) + (KeyWidth / 2), utility::get_y_in_keyboard(2), KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_m, 'M', nullptr, utility::get_x_in_keyboard(7) + (KeyWidth / 2), utility::get_y_in_keyboard(2), KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_del, DelId, nullptr, utility::get_x_in_keyboard(8) + (KeyWidth / 2), utility::get_y_in_keyboard(2), DelWidth, KeyHeight},
+                //Row 4
+                {&CoreKeyboard::s_key_esc, EscId, nullptr, utility::get_x_in_keyboard(0), utility::get_y_in_keyboard(3), EscWidth, KeyHeight},
+                {&CoreKeyboard::s_key_num_switch, NumSwitchId, nullptr, utility::get_x_in_keyboard(2), utility::get_y_in_keyboard(3), SwitchWidth, KeyHeight},
+                {&CoreKeyboard::s_key_space, SpaceId, nullptr, utility::get_x_in_keyboard(3) + (KeyWidth / 2), utility::get_y_in_keyboard(3), SpaceWidth, KeyHeight},
+                {&CoreKeyboard::s_key_dot, DotId, nullptr, utility::get_x_in_keyboard(6) + (KeyWidth / 2), utility::get_y_in_keyboard(3), DotWidth, KeyHeight},
+                {&CoreKeyboard::s_key_enter, EnterId, nullptr, utility::get_x_in_keyboard(8), utility::get_y_in_keyboard(3), EnterWidth, KeyHeight},
                 {nullptr, 0, nullptr, 0, 0, 0, 0}
         };
-    }
+        CoreWindow::window_tree CoreKeyboard::s_numpad_tree[] = /* NOLINT */
+        {
+                {&CoreKeyboard::s_key_1, '1', nullptr, utility::get_x_in_keyboard(0), utility::get_y_in_keyboard(0), KeyWidth, KeyWidth},
+                {&CoreKeyboard::s_key_2, '2', nullptr, utility::get_x_in_keyboard(1), utility::get_y_in_keyboard(0), KeyWidth, KeyWidth},
+                {&CoreKeyboard::s_key_3, '3', nullptr, utility::get_x_in_keyboard(2), utility::get_y_in_keyboard(0), KeyWidth, KeyWidth},
+                {&CoreKeyboard::s_key_4, '4', nullptr, utility::get_x_in_keyboard(0), utility::get_y_in_keyboard(1), KeyWidth, KeyWidth},
+                {&CoreKeyboard::s_key_5, '5', nullptr, utility::get_x_in_keyboard(1), utility::get_y_in_keyboard(1), KeyWidth, KeyWidth},
+                {&CoreKeyboard::s_key_6, '6', nullptr, utility::get_x_in_keyboard(2), utility::get_y_in_keyboard(1), KeyWidth, KeyWidth},
+                {&CoreKeyboard::s_key_7, '7', nullptr, utility::get_x_in_keyboard(0), utility::get_y_in_keyboard(2), KeyWidth, KeyWidth},
+                {&CoreKeyboard::s_key_8, '8', nullptr, utility::get_x_in_keyboard(1), utility::get_y_in_keyboard(2), KeyWidth, KeyWidth},
+                {&CoreKeyboard::s_key_9, '9', nullptr, utility::get_x_in_keyboard(2), utility::get_y_in_keyboard(2), KeyWidth, KeyWidth},
 
-    namespace detail{
+                {&CoreKeyboard::s_key_esc, EscId, nullptr, utility::get_x_in_keyboard(0), utility::get_y_in_keyboard(3), KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_0, '0', nullptr, utility::get_x_in_keyboard(1), utility::get_y_in_keyboard(3), KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_dot, DotId, nullptr, utility::get_x_in_keyboard(2), utility::get_y_in_keyboard(3), KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_del, DelId, nullptr, utility::get_x_in_keyboard(3), utility::get_y_in_keyboard(0), KeyWidth, KeyHeight * 2 + 2},
+                {&CoreKeyboard::s_key_enter, EnterId, nullptr, utility::get_x_in_keyboard(3), utility::get_y_in_keyboard(2), KeyWidth, KeyHeight * 2 + 2},
+                {nullptr, 0, nullptr, 0, 0, 0, 0}
+        };
+
         CoreKeyboard::CONNECT_STATUS CoreKeyboard::connect(CoreWindow *user, IdType resource_id, KEYBOARD_BOARD style)
         {
             if(!user) {return CoreWindow::CONNECT_STATUS::INVALID_SURFACE;}
@@ -2456,12 +2563,12 @@ namespace Gal {
                         nullptr,
                         rect.distance_of_left(0), rect.distance_of_top(parent_rect.get_height() - KeyboardHeight - 1),
                         KeyboardWidth, KeyboardHeight,
-                        utility::g_keyboard_tree);
+                        CoreKeyboard::s_keyboard_tree);
             }
             else if(style == KEYBOARD_BOARD::NUM_ONLY)
             {
                 //Place keyboard below the user window.
-                return CoreWindow::connect(user, resource_id, nullptr, 0, rect.get_height(), NumpadWidth, NumpadHeight, utility::g_numpad_tree);
+                return CoreWindow::connect(user, resource_id, nullptr, 0, rect.get_height(), NumpadWidth, NumpadHeight, CoreKeyboard::s_numpad_tree);
             }
             else
             {
