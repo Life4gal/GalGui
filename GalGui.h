@@ -238,7 +238,7 @@ namespace Gal {
          *      such as: EnumContains(flag, enum1, enum2, 123)
          */
         template<typename Enum, typename... EnumPack, typename = std::enable_if_t<std::is_enum_v<Enum>>>
-        bool EnumContains(const Enum& enum1, const Enum& enum2, const EnumPack&... enums)
+        constexpr bool EnumContains(const Enum& enum1, const Enum& enum2, const EnumPack&... enums)
         {
             if constexpr (sizeof...(enums) == 0)
             {
@@ -265,6 +265,14 @@ namespace Gal {
                 m_top = top;
                 m_right = left + width - 1;
                 m_bottom = top + height - 1;
+            }
+
+            void move_rect(int horizontal, int vertical)
+            {
+                m_left += horizontal;
+                m_top += vertical;
+                m_right += horizontal;
+                m_bottom += vertical;
             }
 
             [[nodiscard]] bool is_in_rect(int x, int y) const {
@@ -1558,7 +1566,7 @@ namespace Gal {
 
             enum class CONNECT_STATUS {
                 INVALID_ID = -1,
-                INVALID_SURFACE = -2,
+                INVALID_USER = -2,
                 SUCCESS = 0
             };
 
@@ -1630,7 +1638,7 @@ namespace Gal {
                 }
                 if (m_surface == nullptr) {
                     GalAssert(false);
-                    return CONNECT_STATUS::INVALID_SURFACE;
+                    return CONNECT_STATUS::INVALID_USER;
                 }
                 /* (cs.x = x * 1024 / 768) for 1027*768=>800*600 quickly*/
                 m_window_rect.set_rect(x, y, width, height);
@@ -2108,7 +2116,7 @@ namespace Gal {
                 surface->show_layer(rect, static_cast<CoreSurface::Z_ORDER_LEVEL>(static_cast<std::underlying_type_t<CoreSurface::Z_ORDER_LEVEL>>(dialog->m_z_order) - 1));
 
                 // clear dialog
-                for (auto &each : s_m_dialogs) {
+                for (auto &each : s_dialogs) {
                     if (each.surface == surface) {
                         each.dialog = nullptr;
                         return CLOSE_DIALOG_STATUS::SUCCESS;
@@ -2120,7 +2128,7 @@ namespace Gal {
             }
 
             static CoreDialog *get_dialog(CoreSurface *surface) {
-                for (auto &dialog : s_m_dialogs) {
+                for (auto &dialog : s_dialogs) {
                     if (dialog.surface == surface) {
                         return dialog.dialog;
                     }
@@ -2155,13 +2163,13 @@ namespace Gal {
         private:
             SET_DIALOG_STATUS set_dialog() {
                 auto surface = get_surface();
-                for (auto &dialog : s_m_dialogs) {
+                for (auto &dialog : s_dialogs) {
                     if (dialog.surface == surface) {
                         dialog.dialog = this;
                         return SET_DIALOG_STATUS::SET_DIALOG;
                     }
                 }
-                for (auto &dialog : s_m_dialogs) {
+                for (auto &dialog : s_dialogs) {
                     if (dialog.surface == nullptr) {
                         dialog.dialog = this;
                         dialog.surface = surface;
@@ -2173,7 +2181,7 @@ namespace Gal {
                 return SET_DIALOG_STATUS::FAILED;
             }
 
-            static std::array<dialog_array, SurfaceCountMax> s_m_dialogs;
+            static std::array<dialog_array, SurfaceCountMax> s_dialogs;
         };
     }
 
@@ -2551,7 +2559,7 @@ namespace Gal {
 
         CoreKeyboard::CONNECT_STATUS CoreKeyboard::connect(CoreWindow *user, IdType resource_id, KEYBOARD_BOARD style)
         {
-            if(!user) {return CoreWindow::CONNECT_STATUS::INVALID_SURFACE;}
+            if(!user) {return CoreWindow::CONNECT_STATUS::INVALID_USER;}
 
             auto rect = user->get_window_rect();
             if(style == KEYBOARD_BOARD::ALL)
@@ -2576,8 +2584,223 @@ namespace Gal {
             }
             return CONNECT_STATUS::INVALID_ID;
         }
-
-
     }
 
+    constexpr auto MaxEditStringLength = 32;
+    constexpr auto EditKeyboardId = 0x1;
+
+    namespace detail
+    {
+        class CoreEdit : public CoreWindow
+        {
+        public:
+            [[nodiscard]] const char* get_text() const {return m_str;}
+
+            void set_text(const char* str)
+            {
+                if(str != nullptr && std::strlen(str) < sizeof(m_str))
+                {
+                    std::strcpy(m_str, str);
+                }
+            }
+
+            void set_keyboard_style(CoreKeyboard::KEYBOARD_BOARD style) {m_keyboard_style = style;}
+
+        protected:
+            void pre_create_window() override
+            {
+                m_attribution = CoreWindow::WINDOW_ATTRIBUTION::VISIBLE | CoreWindow::WINDOW_ATTRIBUTION::FOCUS;
+                m_keyboard_style = CoreKeyboard::KEYBOARD_BOARD::ALL;
+                m_font_type = CoreTheme::get_font(CoreTheme::FONT_TYPE::DEFAULT);
+                m_font_color = CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_FONT);
+                std::memset(m_str_input, 0, sizeof(m_str_input));
+                std::memset(m_str, 0, sizeof(m_str));
+                set_text(CoreWindow::m_str);
+            }
+
+            void on_paint() override
+            {
+                auto rect = get_screen_rect();
+                auto keyboard_rect = s_keyboard.get_screen_rect();
+                switch (m_status) {
+                    case CoreWindow::WINDOW_STATUS::NORMAL:
+                    {
+                        auto z_order = m_parent->get_z_order();
+                        if(m_z_order > z_order)
+                        {
+                            s_keyboard.disconnect();
+                            m_z_order = z_order;
+                            m_surface->show_layer(keyboard_rect, m_z_order);
+                            m_attribution = CoreWindow::WINDOW_ATTRIBUTION::VISIBLE | CoreWindow::WINDOW_ATTRIBUTION::FOCUS;
+                        }
+                        m_surface->fill_rect(rect, CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_NORMAL), m_z_order);
+                        CoreWord::draw_string_in_rect(m_surface, z_order, m_str, rect, m_font_type, m_font_color, CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_NORMAL), CoreWord::ALIGN_TYPE::HORIZONTAL_CENTER | CoreWord::ALIGN_TYPE::VERTICAL_CENTER);
+                        break;
+                    }
+                    case CoreWindow::WINDOW_STATUS::FOCUSED:
+                    {
+                        auto z_order = m_parent->get_z_order();
+                        if(m_z_order > z_order)
+                        {
+                            s_keyboard.disconnect();
+                            m_z_order = z_order;
+                            m_surface->show_layer(keyboard_rect, m_z_order);
+                            m_attribution = CoreWindow::WINDOW_ATTRIBUTION::VISIBLE | CoreWindow::WINDOW_ATTRIBUTION::FOCUS;
+                        }
+                        m_surface->fill_rect(rect, CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_FOCUS), m_z_order);
+                        CoreWord::draw_string_in_rect(m_surface, z_order, m_str, rect, m_font_type, m_font_color, CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_FOCUS), CoreWord::ALIGN_TYPE::HORIZONTAL_CENTER | CoreWord::ALIGN_TYPE::VERTICAL_CENTER);
+                        break;
+                    }
+                    case CoreWindow::WINDOW_STATUS::PUSHED:
+                    {
+                        auto z_order = m_parent->get_z_order();
+                        if(m_z_order == z_order)
+                        {
+                            m_z_order = static_cast<CoreSurface::Z_ORDER_LEVEL>(static_cast<std::underlying_type_t<CoreSurface::Z_ORDER_LEVEL>>(m_z_order) + 1);
+                            m_attribution = CoreWindow::WINDOW_ATTRIBUTION::VISIBLE | CoreWindow::WINDOW_ATTRIBUTION::FOCUS | CoreWindow::WINDOW_ATTRIBUTION::PRIORITY;
+                            show_keyboard();
+                        }
+                        m_surface->fill_rect(rect, CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_PUSHED), z_order);
+                        m_surface->draw_rect(rect, CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_BORDER), m_z_order, 2);
+                        (std::strlen(m_str_input) != 0)
+                                ?
+                                CoreWord::draw_string_in_rect(m_surface, z_order, m_str_input, rect, m_font_type, m_font_color, CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_PUSHED), CoreWord::ALIGN_TYPE::HORIZONTAL_CENTER | CoreWord::ALIGN_TYPE::VERTICAL_CENTER)
+                                :
+                                CoreWord::draw_string_in_rect(m_surface, z_order, m_str, rect, m_font_type, m_font_color, CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_PUSHED), CoreWord::ALIGN_TYPE::HORIZONTAL_CENTER | CoreWord::ALIGN_TYPE::VERTICAL_CENTER);
+                        break;
+                    }
+                    default:
+                        GalAssert(false);
+                        break;
+                }
+            }
+
+            void on_focus() override
+            {
+                m_status = CoreWindow::WINDOW_STATUS::FOCUSED;
+                on_paint();
+            }
+
+            void on_kill_focus() override
+            {
+                m_status = CoreWindow::WINDOW_STATUS::NORMAL;
+                on_paint();
+            }
+
+            void on_navigate(NAVIGATION_KEY key) override
+            {
+                switch(key)
+                {
+                    case CoreWindow::NAVIGATION_KEY::ENTER:
+                        (m_status == CoreWindow::WINDOW_STATUS::PUSHED)
+                                ?
+                                s_keyboard.on_navigate(key)
+                                :
+                                (
+                                        on_touch(m_window_rect.m_left, m_window_rect.m_top, CoreWindow::TOUCH_ACTION::DOWN),
+                                        on_touch(m_window_rect.m_left, m_window_rect.m_top, CoreWindow::TOUCH_ACTION::DOWN)
+                                );
+                        break;
+                    case CoreWindow::NAVIGATION_KEY::BACKWARD:
+                    case CoreWindow::NAVIGATION_KEY::FORWARD:
+                        (m_status == CoreWindow::WINDOW_STATUS::PUSHED) ? s_keyboard.on_navigate(key) : CoreWindow::on_navigate(key);
+                        break;
+                }
+            }
+
+            void on_touch(int x, int y, TOUCH_ACTION action) override
+            {
+                (action == CoreWindow::TOUCH_ACTION::DOWN) ? on_touch_down(x, y) : on_touch_up(x, y);
+            }
+
+            void on_keyboard_click(IdType id, WindowCallbackEnumType param)
+            {
+                auto _param = static_cast<CoreKeyboard::KEYBOARD_CLICK>(param);
+                switch (_param) {
+                    case CoreKeyboard::KEYBOARD_CLICK::CHARACTER:
+                        std::strcpy(m_str_input, s_keyboard.get_str());
+                        on_paint();
+                        break;
+                    case CoreKeyboard::KEYBOARD_CLICK::ENTER:
+                        if(std::strlen(m_str_input) != 0)
+                        {
+                            std::memcpy(m_str, m_str_input, sizeof(m_str_input));
+                        }
+                        m_status = CoreWindow::WINDOW_STATUS::FOCUSED;
+                        on_paint();
+                        break;
+                    case CoreKeyboard::KEYBOARD_CLICK::ESCAPE:
+                        std::memset(m_str_input, 0, sizeof(m_str_input));
+                        m_status = CoreWindow::WINDOW_STATUS::FOCUSED;
+                        on_paint();
+                        break;
+                    default:
+                        GalAssert(false);
+                        break;
+                }
+            }
+
+        private:
+            void show_keyboard()
+            {
+                s_keyboard.connect(this, EditKeyboardId, m_keyboard_style);
+                s_keyboard.set_on_click(static_cast<WindowCallback>(&CoreEdit::on_keyboard_click));
+                s_keyboard.show_window();
+            }
+
+            void on_touch_down(int x, int y)
+            {
+                if(m_window_rect.is_in_rect(x, y))
+                {
+                    //click edit box
+                    if(m_status == CoreWindow::WINDOW_STATUS::NORMAL)
+                    {
+                        m_parent->set_child_focus(this);
+                    }
+                }
+                else
+                {
+                    auto rect = s_keyboard.get_window_rect();
+                    rect.move_rect(m_window_rect.m_left, m_window_rect.m_top);
+                    if(rect.is_in_rect(x, y))
+                    {
+                        //click key board
+                        CoreWindow::on_touch(x, y, CoreWindow::TOUCH_ACTION::DOWN);
+                    }
+                    else if(m_status == CoreWindow::WINDOW_STATUS::PUSHED)
+                    {
+                        m_status = CoreWindow::WINDOW_STATUS::FOCUSED;
+                        on_paint();
+                    }
+                }
+            }
+
+            void on_touch_up(int x, int y)
+            {
+                if(m_status == CoreWindow::WINDOW_STATUS::FOCUSED)
+                {
+                    m_status = CoreWindow::WINDOW_STATUS::PUSHED;
+                    on_paint();
+                }
+                else if(m_status == CoreWindow::WINDOW_STATUS::PUSHED)
+                {
+                    if(m_window_rect.is_in_rect(x, y))
+                    {
+                        // click edit box
+                        m_status = CoreWindow::WINDOW_STATUS::FOCUSED;
+                        on_paint();
+                    }
+                    else
+                    {
+                        CoreWindow::on_touch(x, y, CoreWindow::TOUCH_ACTION::UP);
+                    }
+                }
+            }
+
+            static CoreKeyboard s_keyboard;
+            CoreKeyboard::KEYBOARD_BOARD m_keyboard_style;
+            char m_str_input[MaxEditStringLength];
+            char m_str[MaxEditStringLength];
+        };
+    }
 }
