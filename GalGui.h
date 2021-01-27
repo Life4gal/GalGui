@@ -6,6 +6,9 @@
 #include <utility>
 #include <variant>
 #include <array>
+#include <vector>
+#include <any>
+#include <string>
 
 #include <cstring>
 
@@ -308,7 +311,7 @@ namespace Gal {
     }
 
     using ColorType = unsigned int;
-    constexpr ColorType DefaultColorMask            = 0xFF080408;
+    constexpr ColorType DefaultColorMask = 0xFF080408;
 
     namespace utility{
         constexpr ColorType build_argb(ColorType alpha, ColorType red, ColorType green, ColorType blue) {
@@ -344,8 +347,8 @@ namespace Gal {
         }
     }
 
-    constexpr auto SurfaceCountMax                  = 6;//root + pages
-    constexpr auto WordBufferLength                 = 16;
+    constexpr auto SurfaceCountMax = 6;//root + pages
+    constexpr auto WordBufferLength = 16;
 
     namespace detail{
         enum class COLOR_BYTE_TYPE {
@@ -1584,8 +1587,7 @@ namespace Gal {
 //            template<typename Enum, typename = std::enable_if<std::is_enum_v<Enum>>>
 //            using WindowCallback = std::function<void(IdType, Enum)>;
             // to-do, wrap it
-            using WindowCallbackEnumType = int;
-            using WindowCallback = void(CoreWindow::*)(IdType, WindowCallbackEnumType);
+            using WindowCallback = void(CoreWindow::*)(IdType, const std::any&);
 
             struct window_tree {
                 CoreWindow *window;//window instance
@@ -1740,7 +1742,7 @@ namespace Gal {
                 if (focus_child->is_focus_window()) {
                     if (focus_child != old_focus_child) {
                         if (old_focus_child) {
-                            old_focus_child->on_kill_focus();
+                            old_focus_child->on_blur();
                         }
                         m_focus_child = focus_child;
                         m_focus_child->on_focus();
@@ -1946,7 +1948,7 @@ namespace Gal {
             }
             void set_active_child(CoreWindow *child) { m_focus_child = child; }
             virtual void on_focus(){};
-            virtual void on_kill_focus(){};
+            virtual void on_blur(){};
 
             IdType m_id;
             WINDOW_STATUS m_status;
@@ -2020,7 +2022,7 @@ namespace Gal {
                 on_paint();
             }
 
-            void on_kill_focus() override {
+            void on_blur() override {
                 m_status = CoreWindow::WINDOW_STATUS::NORMAL;
                 on_paint();
             }
@@ -2280,19 +2282,19 @@ namespace Gal {
         class CoreKeyboard : public CoreWindow
         {
         public:
-            enum class KEYBOARD_CASE : WindowCallbackEnumType
+            enum class KEYBOARD_CASE
             {
                 UPPERCASE,
                 LOWERCASE
             };
 
-            enum class KEYBOARD_BOARD : WindowCallbackEnumType
+            enum class KEYBOARD_BOARD
             {
                 ALL,
                 NUM_ONLY
             };
 
-            enum class KEYBOARD_CLICK : WindowCallbackEnumType
+            enum class KEYBOARD_CLICK
             {
                 CHARACTER,
                 ENTER,
@@ -2344,29 +2346,29 @@ namespace Gal {
                 m_surface->fill_rect(rect, utility::build_rgb(0, 0, 0), m_z_order);
             }
 
-            void on_key_clicked(IdType id, WindowCallbackEnumType param)
+            void on_key_clicked(IdType id, const std::any& param)
             {
                 switch(id)
                 {
                     case CapsId:
-                        on_caps_clicked(id, param);
+                        on_caps_clicked(id, std::forward<const std::any&>(param));
                         break;
                     case EnterId:
-                        on_enter_clicked(id, param);
+                        on_enter_clicked(id, std::forward<const std::any&>(param));
                         break;
                     case EscId:
-                        on_esc_clicked(id, param);
+                        on_esc_clicked(id, std::forward<const std::any&>(param));
                         break;
                     case DelId:
-                        on_del_clicked(id, param);
+                        on_del_clicked(id, std::forward<const std::any&>(param));
                         break;
                     default:
-                        on_char_clicked(id, param);
+                        on_char_clicked(id, std::forward<const std::any&>(param));
                         break;
                 }
             }
 
-            void on_char_clicked(IdType id, WindowCallbackEnumType param)
+            void on_char_clicked(IdType id, const std::any& param)
             {
                 //id = char ascii code
                 if(m_str_length >= sizeof(m_str)) {return;}
@@ -2374,7 +2376,7 @@ namespace Gal {
                 auto input_char = [&]()
                 {
                   m_str[m_str_length++] = id;
-                  (m_parent->*m_on_click)(m_id, static_cast<WindowCallbackEnumType>(KEYBOARD_CLICK::CHARACTER));
+                  (m_parent->*m_on_click)(m_id, KEYBOARD_CLICK::CHARACTER);
                 };
                 if((id >= Num0Id && id <= Num9Id) || id == SpaceId || id == DotId)
                 {
@@ -2391,30 +2393,30 @@ namespace Gal {
                 GalAssert(false);
             }
 
-            void on_del_clicked(IdType id, WindowCallbackEnumType param)
+            void on_del_clicked(IdType id, const std::any& param)
             {
                 if(m_str_length <= 0) {return;}
 
                 m_str[--m_str_length] = 0;
-                (m_parent->*m_on_click)(m_id, static_cast<WindowCallbackEnumType>(KEYBOARD_CLICK::CHARACTER));
+                (m_parent->*m_on_click)(m_id, KEYBOARD_CLICK::CHARACTER);
             }
 
-            void on_caps_clicked(IdType id, WindowCallbackEnumType param)
+            void on_caps_clicked(IdType id, const std::any& param)
             {
                 m_cap_status = (m_cap_status == KEYBOARD_CASE::LOWERCASE) ? KEYBOARD_CASE::UPPERCASE : KEYBOARD_CASE::LOWERCASE;
                 show_window();
             }
 
-            void on_enter_clicked(IdType id, WindowCallbackEnumType param)
+            void on_enter_clicked(IdType id, const std::any& param)
             {
                 std::memset(m_str, 0, sizeof(m_str));
-                (m_parent->*m_on_click)(m_id, static_cast<WindowCallbackEnumType>(KEYBOARD_CLICK::ENTER));
+                (m_parent->*m_on_click)(m_id, KEYBOARD_CLICK::ENTER);
             }
 
-            void on_esc_clicked(IdType id, WindowCallbackEnumType param)
+            void on_esc_clicked(IdType id, const std::any& param)
             {
                 std::memset(m_str, 0, sizeof(m_str));
-                (m_parent->*m_on_click)(m_id, static_cast<WindowCallbackEnumType>(KEYBOARD_CLICK::ESCAPE));
+                (m_parent->*m_on_click)(m_id, KEYBOARD_CLICK::ESCAPE);
             }
 
         private:
@@ -2588,6 +2590,7 @@ namespace Gal {
 
     constexpr auto MaxEditStringLength = 32;
     constexpr auto EditKeyboardId = 0x1;
+    constexpr auto ListboxItemHeight = 45;
 
     namespace detail
     {
@@ -2681,7 +2684,7 @@ namespace Gal {
                 on_paint();
             }
 
-            void on_kill_focus() override
+            void on_blur() override
             {
                 m_status = CoreWindow::WINDOW_STATUS::NORMAL;
                 on_paint();
@@ -2713,10 +2716,9 @@ namespace Gal {
                 (action == CoreWindow::TOUCH_ACTION::DOWN) ? on_touch_down(x, y) : on_touch_up(x, y);
             }
 
-            void on_keyboard_click(IdType id, WindowCallbackEnumType param)
+            void on_keyboard_click(IdType id, const std::any& param)
             {
-                auto _param = static_cast<CoreKeyboard::KEYBOARD_CLICK>(param);
-                switch (_param) {
+                switch (std::any_cast<CoreKeyboard::KEYBOARD_CLICK>(param)) {
                     case CoreKeyboard::KEYBOARD_CLICK::CHARACTER:
                         std::strcpy(m_str_input, s_keyboard.get_str());
                         on_paint();
@@ -2801,6 +2803,260 @@ namespace Gal {
             CoreKeyboard::KEYBOARD_BOARD m_keyboard_style;
             char m_str_input[MaxEditStringLength];
             char m_str[MaxEditStringLength];
+        };
+
+        class CoreLabel : public CoreWindow
+        {
+        public:
+            void on_paint() override
+            {
+                if(m_str)
+                {
+                    auto rect = get_screen_rect();
+                    auto background_color = m_background_color ? m_background_color : m_parent->get_background_color();
+                    m_surface->fill_rect(rect, background_color, m_z_order);
+                    CoreWord::draw_string_in_rect(m_surface, m_z_order, m_str, rect, m_font_type, m_font_color, background_color, CoreWord::ALIGN_TYPE::HORIZONTAL_LEFT | CoreWord::ALIGN_TYPE::VERTICAL_CENTER);
+                }
+            }
+
+        protected:
+            void pre_create_window() override
+            {
+                m_attribution = CoreWindow::WINDOW_ATTRIBUTION::VISIBLE;
+                m_font_color = CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_FONT);
+                m_font_type = CoreTheme::get_font(CoreTheme::FONT_TYPE::DEFAULT);
+            }
+        };
+
+        class CoreListbox : public CoreWindow
+        {
+        public:
+            void set_on_change(WindowCallback on_change) {this->m_on_change = on_change;}
+
+            [[nodiscard]] size_t get_item_count() const {return m_item_array.size();}
+
+            void add_item(char* str)
+            {
+                m_item_array.push_back(str);
+                update_list_list();
+            }
+
+            void clear_item()
+            {
+                m_item_array.clear();
+                update_list_list();
+            }
+
+            void select_item(size_t index)
+            {
+                GalAssert(index < m_item_array.size());
+                m_select_item = index;
+            }
+
+        protected:
+            void pre_create_window() override
+            {
+                m_attribution = CoreWindow::WINDOW_ATTRIBUTION::VISIBLE | CoreWindow::WINDOW_ATTRIBUTION::FOCUS;
+                m_select_item = 0;
+                m_font_type = CoreTheme::get_font(CoreTheme::FONT_TYPE::DEFAULT);
+                m_font_color = CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_FONT);
+            }
+
+            void on_paint() override
+            {
+                auto rect = get_screen_rect();
+                switch (m_status) {
+                    case CoreWindow::WINDOW_STATUS::NORMAL:
+                    {
+                        auto z_order = m_parent->get_z_order();
+                        if(m_z_order > z_order)
+                        {
+                            m_z_order = z_order;
+                            m_surface->show_layer(m_list_screen_rect, m_z_order);
+                            m_attribution = CoreWindow::WINDOW_ATTRIBUTION::VISIBLE | CoreWindow::WINDOW_ATTRIBUTION::FOCUS;
+                        }
+                        m_surface->fill_rect(rect, CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_NORMAL), m_z_order);
+                        CoreWord::draw_string_in_rect(m_surface, m_z_order, m_item_array[m_select_item], rect, m_font_type, m_font_color, CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_NORMAL), CoreWord::ALIGN_TYPE::HORIZONTAL_CENTER | CoreWord::ALIGN_TYPE::VERTICAL_CENTER);
+                        break;
+                    }
+                    case CoreWindow::WINDOW_STATUS::FOCUSED:
+                    {
+                        auto z_order = m_parent->get_z_order();
+                        if(m_z_order > z_order)
+                        {
+                            m_z_order = z_order;
+                            m_surface->show_layer(m_list_screen_rect, m_z_order);
+                            m_attribution = CoreWindow::WINDOW_ATTRIBUTION::VISIBLE | CoreWindow::WINDOW_ATTRIBUTION::FOCUS;
+                        }
+                        m_surface->fill_rect(rect, CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_FOCUS), m_z_order);
+                        CoreWord::draw_string_in_rect(m_surface, m_z_order, m_item_array[m_select_item], rect, m_font_type, m_font_color, CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_FOCUS), CoreWord::ALIGN_TYPE::HORIZONTAL_CENTER | CoreWord::ALIGN_TYPE::VERTICAL_CENTER);
+                        break;
+                    }
+                    case CoreWindow::WINDOW_STATUS::PUSHED:
+                    {
+                        m_surface->fill_rect(rect, CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_PUSHED), m_z_order);
+                        m_surface->draw_rect(rect, CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_BORDER), m_z_order, 2);
+                        CoreWord::draw_string_in_rect(m_surface, m_z_order, m_item_array[m_select_item], rect, m_font_type, utility::build_rgb(2, 124, 165), utility::build_argb(0, 0, 0, 0), CoreWord::ALIGN_TYPE::HORIZONTAL_CENTER | CoreWord::ALIGN_TYPE::VERTICAL_CENTER);
+                        //draw list
+                        if(!m_item_array.empty())
+                        {
+                            if(m_z_order == m_parent->get_z_order())
+                            {
+                                m_z_order = static_cast<CoreSurface::Z_ORDER_LEVEL>(static_cast<std::underlying_type_t<CoreSurface::Z_ORDER_LEVEL>>(m_z_order) + 1);
+                            }
+                            m_attribution = CoreWindow::WINDOW_ATTRIBUTION::VISIBLE | CoreWindow::WINDOW_ATTRIBUTION::FOCUS | CoreWindow::WINDOW_ATTRIBUTION::PRIORITY;
+                            show_list();
+                        }
+                        break;
+                    }
+                    default:
+                        GalAssert(false);
+                        break;
+                }
+            }
+
+            void on_focus() override
+            {
+                m_status = CoreWindow::WINDOW_STATUS::FOCUSED;
+                on_paint();
+            }
+
+            void on_blur() override
+            {
+                m_status = CoreWindow::WINDOW_STATUS::NORMAL;
+                on_paint();
+            }
+
+            void on_navigate(NAVIGATION_KEY key) override
+            {
+                switch (key) {
+                    case CoreWindow::NAVIGATION_KEY::ENTER:
+                        on_touch(m_window_rect.m_left, m_window_rect.m_top, CoreWindow::TOUCH_ACTION::DOWN);
+                        on_touch(m_window_rect.m_left, m_window_rect.m_top, CoreWindow::TOUCH_ACTION::UP);
+                        return;
+                    case CoreWindow::NAVIGATION_KEY::BACKWARD:
+                        if(m_status != CoreWindow::WINDOW_STATUS::PUSHED)
+                        {
+                            return CoreWindow::on_navigate(key);
+                        }
+                        m_select_item = (m_select_item > 0) ? (m_select_item - 1) : m_select_item;
+                        return show_list();
+                    case CoreWindow::NAVIGATION_KEY::FORWARD:
+                        if(m_status != CoreWindow::WINDOW_STATUS::PUSHED)
+                        {
+                            return CoreWindow::on_navigate(key);
+                        }
+                        m_select_item = (m_select_item < (m_item_array.size() - 1)) ? (m_select_item + 1) : m_select_item;
+                        return show_list();
+                }
+            }
+
+            void on_touch(int x, int y, TOUCH_ACTION action) override
+            {
+                (action == CoreWindow::TOUCH_ACTION::DOWN) ? on_touch_down(x, y) : on_touch_up(x, y);
+            }
+
+        private:
+            void update_list_list()
+            {
+                m_list_window_rect = m_window_rect;
+                m_list_window_rect.m_top = m_window_rect.m_bottom + 1;
+                m_list_window_rect.m_bottom = m_list_window_rect.m_top + static_cast<int>(m_item_array.size() * ListboxItemHeight);
+
+                m_list_screen_rect = get_screen_rect();
+                m_list_screen_rect.m_top = m_list_screen_rect.m_bottom + 1;
+                m_list_screen_rect.m_bottom = m_list_screen_rect.m_top + static_cast<int>(m_item_array.size() * ListboxItemHeight);
+            }
+
+            void show_list()
+            {
+                //draw all items
+                auto left = m_list_screen_rect.m_left;
+                auto top = m_list_screen_rect.m_top;
+                auto right = m_list_screen_rect.m_right;
+                for(auto i = 0; i < m_item_array.size(); ++i)
+                {
+                    auto rect = CoreRect(left, top + i * ListboxItemHeight, right, top + i * ListboxItemHeight + ListboxItemHeight);
+                    if(m_select_item == i)
+                    {
+                        m_surface->fill_rect(rect, CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_FOCUS), m_z_order);
+                        CoreWord::draw_string_in_rect(m_surface, m_z_order, m_item_array[i], rect, m_font_type, m_font_color, CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_FOCUS), CoreWord::ALIGN_TYPE::HORIZONTAL_CENTER | CoreWord::ALIGN_TYPE::VERTICAL_CENTER);
+                    }
+                    else
+                    {
+                        m_surface->fill_rect(rect, utility::build_rgb(17, 17, 17), m_z_order);
+                        CoreWord::draw_string_in_rect(m_surface, m_z_order, m_item_array[i], rect, m_font_type, m_font_color, utility::build_rgb(17, 17, 17), CoreWord::ALIGN_TYPE::HORIZONTAL_CENTER | CoreWord::ALIGN_TYPE::VERTICAL_CENTER);
+                    }
+                }
+            }
+
+            void on_touch_down(int x, int y)
+            {
+                if(m_window_rect.is_in_rect(x, y))
+                {
+                    //click base
+                    if(m_status == CoreWindow::WINDOW_STATUS::NORMAL)
+                    {
+                        m_parent->set_child_focus(this);
+                    }
+                }
+                else if(m_list_window_rect.is_in_rect(x, y))
+                {
+                    //click extend list
+                    CoreWindow::on_touch(x, y, CoreWindow::TOUCH_ACTION::DOWN);
+                }
+                else
+                {
+                    if(m_status == CoreWindow::WINDOW_STATUS::PUSHED)
+                    {
+                        m_status = CoreWindow::WINDOW_STATUS::FOCUSED;
+                        on_paint();
+                        if(m_on_change)
+                        {
+                            (m_parent->*m_on_change)(m_id, m_select_item);
+                        }
+                    }
+                }
+            }
+
+            void on_touch_up(int x, int y)
+            {
+                if(m_status == CoreWindow::WINDOW_STATUS::FOCUSED)
+                {
+                    m_status = CoreWindow::WINDOW_STATUS::PUSHED;
+                    on_paint();
+                }
+                else if(m_status == CoreWindow::WINDOW_STATUS::PUSHED)
+                {
+                    if(m_window_rect.is_in_rect(x, y))
+                    {
+                        //click base
+                        m_status = CoreWindow::WINDOW_STATUS::FOCUSED;
+                        on_paint();
+                    }
+                    else if(m_list_window_rect.is_in_rect(x, y))
+                    {
+                        //click extend list
+                        m_status = CoreWindow::WINDOW_STATUS::FOCUSED;
+                        select_item((y - m_list_window_rect.m_top) / ListboxItemHeight);
+                        on_paint();
+                        if(m_on_change)
+                        {
+                            (m_parent->*m_on_change)(m_id, m_select_item);
+                        }
+                    }
+                    else
+                    {
+                        CoreWindow::on_touch(x, y, CoreWindow::TOUCH_ACTION::UP);
+                    }
+                }
+            }
+
+            size_t m_select_item;
+            std::vector<const char*> m_item_array;
+            CoreRect m_list_window_rect;//rect relative to parent wnd
+            CoreRect m_list_screen_rect;//rect relative to physical screen(framebuffer)
+            WindowCallback m_on_change;
         };
     }
 }
