@@ -519,6 +519,11 @@ namespace Gal {
                     return m_surface_group[m_surface_index++];
                 }
 
+                bool swipe_surface(CoreSurface* surface1, CoreSurface* surface2, const CoreRect& rect, int offset)
+                {
+                    return swipe_surface(surface1, surface2, rect.m_left, rect.m_right, rect.m_top, rect.m_bottom, offset);
+                }
+
                 bool swipe_surface(CoreSurface *surface1, CoreSurface *surface2, int x0, int x1, int y0, int y1, int offset);
 
                 [[nodiscard]] int get_width() const {
@@ -763,6 +768,11 @@ namespace Gal {
 
             void fill_rect(CoreRect rect, ColorType rgb, Z_ORDER_LEVEL z_order) {
                 fill_rect(rect.m_left, rect.m_top, rect.m_right, rect.m_bottom, rgb, z_order);
+            }
+
+            bool flush_screen(const CoreRect& rect)
+            {
+                return flush_screen(rect.m_left, rect.m_top, rect.m_right, rect.m_bottom);
             }
 
             bool flush_screen(int left, int top, int right, int bottom) {
@@ -1549,7 +1559,7 @@ namespace Gal {
                 PRIORITY = 0x10000000L// Handle touch action at high priority
             };
 
-            enum class WINDOW_STATUS {
+            enum class WINDOW_STATE {
                 NORMAL,
                 PUSHED,
                 FOCUSED,
@@ -1567,13 +1577,13 @@ namespace Gal {
                 UP
             };
 
-            enum class CONNECT_STATUS {
+            enum class CONNECT_STATE {
                 INVALID_ID = -1,
                 INVALID_USER = -2,
                 SUCCESS = 0
             };
 
-            enum class UNLINK_STATUS {
+            enum class UNLINK_STATE {
                 INVALID_TOP_CHILD = -2,
                 INVALID_CHILD = -1,
                 NOT_MY_CHILD = -1,
@@ -1601,7 +1611,7 @@ namespace Gal {
             };
 
             CoreWindow()
-                : m_status(WINDOW_STATUS::NORMAL),
+                : m_state(WINDOW_STATE::NORMAL),
                   m_attribution(WINDOW_ATTRIBUTION::VISIBLE | WINDOW_ATTRIBUTION::FOCUS),
                   m_parent(nullptr),
                   m_top_child(nullptr),
@@ -1619,7 +1629,7 @@ namespace Gal {
             virtual ~CoreWindow() = default;
             ;
 
-            virtual CONNECT_STATUS connect(
+            virtual CONNECT_STATE connect(
                     CoreWindow *parent,
                     IdType resource_id,
                     const char *str,
@@ -1628,19 +1638,19 @@ namespace Gal {
                     window_tree *child_tree) {
                 if (resource_id == s_id_not_used) {
                     GalAssert(false);
-                    return CONNECT_STATUS::INVALID_ID;
+                    return CONNECT_STATE::INVALID_ID;
                 }
                 m_id = resource_id;
                 set_str(str);
                 m_parent = parent;
-                m_status = WINDOW_STATUS::NORMAL;
+                m_state = WINDOW_STATE::NORMAL;
                 if (parent) {
                     m_z_order = parent->m_z_order;
                     m_surface = parent->m_surface;
                 }
                 if (m_surface == nullptr) {
                     GalAssert(false);
-                    return CONNECT_STATUS::INVALID_USER;
+                    return CONNECT_STATE::INVALID_USER;
                 }
                 /* (cs.x = x * 1024 / 768) for 1027*768=>800*600 quickly*/
                 m_window_rect.set_rect(x, y, width, height);
@@ -1651,7 +1661,7 @@ namespace Gal {
                 if (load_child_window(child_tree) >= 0) {
                     on_init_children();
                 }
-                return CONNECT_STATUS::SUCCESS;
+                return CONNECT_STATE::SUCCESS;
             }
             void disconnect() {
                 if (m_id == s_id_not_used) { return; }
@@ -1764,10 +1774,10 @@ namespace Gal {
                 return child;
             }
 
-            UNLINK_STATUS unlink_child(CoreWindow *child) {
-                if (child == nullptr) { return UNLINK_STATUS::INVALID_CHILD; }
-                if (this != child->m_parent) { return UNLINK_STATUS::NOT_MY_CHILD; }
-                if (m_top_child == nullptr) { return UNLINK_STATUS::INVALID_TOP_CHILD; }
+            UNLINK_STATE unlink_child(CoreWindow *child) {
+                if (child == nullptr) { return UNLINK_STATE::INVALID_CHILD; }
+                if (this != child->m_parent) { return UNLINK_STATE::NOT_MY_CHILD; }
+                if (m_top_child == nullptr) { return UNLINK_STATE::INVALID_TOP_CHILD; }
 
                 bool found = false;
                 if (child == m_top_child) {
@@ -1796,9 +1806,9 @@ namespace Gal {
                     }
                     child->m_next_sibling = nullptr;
                     child->m_prev_sibling = nullptr;
-                    return UNLINK_STATUS::SUCCESS;
+                    return UNLINK_STATE::SUCCESS;
                 }
-                return UNLINK_STATUS::DO_NOTHING;
+                return UNLINK_STATE::DO_NOTHING;
             }
 
             [[nodiscard]] CoreWindow *get_prev_sibling() const { return m_prev_sibling; }
@@ -1951,7 +1961,7 @@ namespace Gal {
             virtual void on_blur(){};
 
             IdType m_id;
-            WINDOW_STATUS m_status;
+            WINDOW_STATE m_state;
             WINDOW_ATTRIBUTION m_attribution;
             CoreRect m_window_rect;    //position relative to parent window
             CoreWindow *m_parent;      //parent window
@@ -1985,8 +1995,8 @@ namespace Gal {
                             static_cast<CoreWord::ALIGN_TYPE>(CoreWord::ALIGN_TYPE::HORIZONTAL_CENTER | CoreWord::ALIGN_TYPE::VERTICAL_CENTER));
                 };
 
-                switch (m_status) {
-                    case CoreWindow::WINDOW_STATUS::NORMAL: {
+                switch (m_state) {
+                    case CoreWindow::WINDOW_STATE::NORMAL: {
                         auto color = CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_NORMAL);
                         m_surface->fill_rect(rect, color, m_z_order);
                         if (m_str) {
@@ -1994,7 +2004,7 @@ namespace Gal {
                         }
                         break;
                     }
-                    case CoreWindow::WINDOW_STATUS::FOCUSED: {
+                    case CoreWindow::WINDOW_STATE::FOCUSED: {
                         auto color = CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_FOCUS);
                         m_surface->fill_rect(rect, color, m_z_order);
                         if (m_str) {
@@ -2002,7 +2012,7 @@ namespace Gal {
                         }
                         break;
                     }
-                    case CoreWindow::WINDOW_STATUS::PUSHED: {
+                    case CoreWindow::WINDOW_STATE::PUSHED: {
                         auto color = CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_PUSHED);
                         m_surface->fill_rect(rect, color, m_z_order);
                         m_surface->draw_rect(rect, CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_BORDER), m_z_order, 2);
@@ -2018,12 +2028,12 @@ namespace Gal {
             }
 
             void on_focus() override {
-                m_status = CoreWindow::WINDOW_STATUS::FOCUSED;
+                m_state = CoreWindow::WINDOW_STATE::FOCUSED;
                 on_paint();
             }
 
             void on_blur() override {
-                m_status = CoreWindow::WINDOW_STATUS::NORMAL;
+                m_state = CoreWindow::WINDOW_STATE::NORMAL;
                 on_paint();
             }
 
@@ -2037,10 +2047,10 @@ namespace Gal {
             void on_touch(int x, int y, TOUCH_ACTION action) override {
                 if (action == CoreWindow::TOUCH_ACTION::DOWN) {
                     m_parent->set_child_focus(this);
-                    m_status = CoreWindow::WINDOW_STATUS::PUSHED;
+                    m_state = CoreWindow::WINDOW_STATE::PUSHED;
                     on_paint();
                 } else {
-                    m_status = CoreWindow::WINDOW_STATUS::FOCUSED;
+                    m_state = CoreWindow::WINDOW_STATE::FOCUSED;
                     on_paint();
                     if (m_on_click) {
                         (m_parent->*m_on_click)(m_id, 0);
@@ -2068,18 +2078,18 @@ namespace Gal {
 
         class CoreDialog : public CoreWindow {
         public:
-            enum class OPEN_DIALOG_STATUS {
+            enum class OPEN_DIALOG_STATE {
                 FAILED = 0,
                 SUCCESS = 1
             };
 
-            enum class CLOSE_DIALOG_STATUS {
+            enum class CLOSE_DIALOG_STATE {
                 FAILED = -1,
                 DO_NOTHING = 0,
                 SUCCESS = 1
             };
 
-            enum class SET_DIALOG_STATUS {
+            enum class SET_DIALOG_STATE {
                 FAILED = -1,
                 SET_DIALOG = 0,
                 SET_DIALOG_AND_SURFACE = 1
@@ -2090,14 +2100,14 @@ namespace Gal {
                 CoreSurface *surface;
             };
 
-            static OPEN_DIALOG_STATUS open_dialog(CoreDialog *dialog, bool modal = true) {
+            static OPEN_DIALOG_STATE open_dialog(CoreDialog *dialog, bool modal = true) {
                 if (dialog == nullptr) {
                     GalAssert(false);
-                    return OPEN_DIALOG_STATUS::FAILED;
+                    return OPEN_DIALOG_STATE::FAILED;
                 }
                 auto curr = get_dialog(dialog->get_surface());
                 if (curr == dialog) {
-                    return OPEN_DIALOG_STATUS::SUCCESS;
+                    return OPEN_DIALOG_STATE::SUCCESS;
                 }
                 if (curr) {
                     curr->set_attribution(static_cast<WINDOW_ATTRIBUTION>(0));
@@ -2106,12 +2116,12 @@ namespace Gal {
                 dialog->set_attribution(modal ? (mode | WINDOW_ATTRIBUTION::PRIORITY) : static_cast<WINDOW_ATTRIBUTION>(mode));
                 dialog->show_window();
                 dialog->set_dialog();
-                return OPEN_DIALOG_STATUS::SUCCESS;
+                return OPEN_DIALOG_STATE::SUCCESS;
             }
 
-            static CLOSE_DIALOG_STATUS close_dialog(CoreSurface *surface) {
+            static CLOSE_DIALOG_STATE close_dialog(CoreSurface *surface) {
                 auto dialog = get_dialog(surface);
-                if (dialog == nullptr) { return CLOSE_DIALOG_STATUS::DO_NOTHING; }
+                if (dialog == nullptr) { return CLOSE_DIALOG_STATE::DO_NOTHING; }
 
                 auto rect = dialog->get_screen_rect();
                 dialog->set_attribution(static_cast<WINDOW_ATTRIBUTION>(0));
@@ -2121,12 +2131,12 @@ namespace Gal {
                 for (auto &each : s_dialogs) {
                     if (each.surface == surface) {
                         each.dialog = nullptr;
-                        return CLOSE_DIALOG_STATUS::SUCCESS;
+                        return CLOSE_DIALOG_STATE::SUCCESS;
                     }
                 }
 
                 GalAssert(false);
-                return CLOSE_DIALOG_STATUS::FAILED;
+                return CLOSE_DIALOG_STATE::FAILED;
             }
 
             static CoreDialog *get_dialog(CoreSurface *surface) {
@@ -2163,24 +2173,24 @@ namespace Gal {
             }
 
         private:
-            SET_DIALOG_STATUS set_dialog() {
+            SET_DIALOG_STATE set_dialog() {
                 auto surface = get_surface();
                 for (auto &dialog : s_dialogs) {
                     if (dialog.surface == surface) {
                         dialog.dialog = this;
-                        return SET_DIALOG_STATUS::SET_DIALOG;
+                        return SET_DIALOG_STATE::SET_DIALOG;
                     }
                 }
                 for (auto &dialog : s_dialogs) {
                     if (dialog.surface == nullptr) {
                         dialog.dialog = this;
                         dialog.surface = surface;
-                        return SET_DIALOG_STATUS::SET_DIALOG_AND_SURFACE;
+                        return SET_DIALOG_STATE::SET_DIALOG_AND_SURFACE;
                     }
                 }
 
                 GalAssert(false);
-                return SET_DIALOG_STATUS::FAILED;
+                return SET_DIALOG_STATE::FAILED;
             }
 
             static std::array<dialog_array, SurfaceCountMax> s_dialogs;
@@ -2301,7 +2311,7 @@ namespace Gal {
                 ESCAPE
             };
 
-            virtual CONNECT_STATUS connect(CoreWindow* user, IdType resource_id, KEYBOARD_BOARD style);
+            virtual CONNECT_STATE connect(CoreWindow* user, IdType resource_id, KEYBOARD_BOARD style);
 
             void on_init_children() override
             {
@@ -2316,7 +2326,7 @@ namespace Gal {
                 }
             }
 
-            [[nodiscard]] KEYBOARD_CASE get_cap_status() const {return m_cap_status;}
+            [[nodiscard]] KEYBOARD_CASE get_cap_state() const {return m_cap_state;}
 
             [[nodiscard]] const char *get_str() const {return m_str;}
 
@@ -2335,7 +2345,7 @@ namespace Gal {
             void pre_create_window() override
             {
                 m_attribution = static_cast<WINDOW_ATTRIBUTION>(WINDOW_ATTRIBUTION::VISIBLE | WINDOW_ATTRIBUTION::FOCUS);
-                m_cap_status = KEYBOARD_CASE::UPPERCASE;
+                m_cap_state = KEYBOARD_CASE::UPPERCASE;
                 std::memset(m_str, 0, sizeof(m_str));
                 m_str_length = 0;
             }
@@ -2384,7 +2394,7 @@ namespace Gal {
                 }
                 if(id >= CharAId && id <= CharZId)
                 {
-                    if(m_cap_status == KEYBOARD_CASE::LOWERCASE)
+                    if(m_cap_state == KEYBOARD_CASE::LOWERCASE)
                     {
                         id += 0x20;
                     }
@@ -2403,7 +2413,7 @@ namespace Gal {
 
             void on_caps_clicked(IdType id, const std::any& param)
             {
-                m_cap_status = (m_cap_status == KEYBOARD_CASE::LOWERCASE) ? KEYBOARD_CASE::UPPERCASE : KEYBOARD_CASE::LOWERCASE;
+                m_cap_state = (m_cap_state == KEYBOARD_CASE::LOWERCASE) ? KEYBOARD_CASE::UPPERCASE : KEYBOARD_CASE::LOWERCASE;
                 show_window();
             }
 
@@ -2422,7 +2432,7 @@ namespace Gal {
         private:
             char m_str[32];
             int m_str_length;
-            KEYBOARD_CASE m_cap_status;
+            KEYBOARD_CASE m_cap_state;
             WindowCallback m_on_click;
         };
 
@@ -2432,14 +2442,14 @@ namespace Gal {
             void on_paint() override
             {
                 auto rect = get_screen_rect();
-                switch (m_status) {
-                    case CoreWindow::WINDOW_STATUS::NORMAL:
+                switch (m_state) {
+                    case CoreWindow::WINDOW_STATE::NORMAL:
                         m_surface->fill_rect(rect, CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_NORMAL), m_z_order);
                         break;
-                    case CoreWindow::WINDOW_STATUS::FOCUSED:
+                    case CoreWindow::WINDOW_STATE::FOCUSED:
                         m_surface->fill_rect(rect, CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_FOCUS), m_z_order);
                         break;
-                    case CoreWindow::WINDOW_STATUS::PUSHED:
+                    case CoreWindow::WINDOW_STATE::PUSHED:
                         m_surface->fill_rect(rect, CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_PUSHED), m_z_order);
                         m_surface->draw_rect(rect, CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_BORDER), m_z_order, 2);
                         break;
@@ -2488,7 +2498,7 @@ namespace Gal {
                 IdType letter[] = {0, 0};
                 if(m_id >= CharAId && m_id <= CharZId)
                 {
-                    letter[0] = dynamic_cast<CoreKeyboard*>(m_parent)->get_cap_status() == CoreKeyboard::KEYBOARD_CASE::UPPERCASE ? m_id : (m_id + 0x20);
+                    letter[0] = dynamic_cast<CoreKeyboard *>(m_parent)->get_cap_state() == CoreKeyboard::KEYBOARD_CASE::UPPERCASE ? m_id : (m_id + 0x20);
                 }
                 else if(m_id >= Num0Id && m_id <= Num9Id)
                 {
@@ -2559,9 +2569,9 @@ namespace Gal {
                 {nullptr, 0, nullptr, 0, 0, 0, 0}
         };
 
-        CoreKeyboard::CONNECT_STATUS CoreKeyboard::connect(CoreWindow *user, IdType resource_id, KEYBOARD_BOARD style)
+        CoreKeyboard::CONNECT_STATE CoreKeyboard::connect(CoreWindow *user, IdType resource_id, KEYBOARD_BOARD style)
         {
-            if(!user) {return CoreWindow::CONNECT_STATUS::INVALID_USER;}
+            if(!user) {return CoreWindow::CONNECT_STATE::INVALID_USER;}
 
             auto rect = user->get_window_rect();
             if(style == KEYBOARD_BOARD::ALL)
@@ -2584,7 +2594,7 @@ namespace Gal {
             {
                 GalAssert(false);
             }
-            return CONNECT_STATUS::INVALID_ID;
+            return CONNECT_STATE::INVALID_ID;
         }
     }
 
@@ -2592,26 +2602,21 @@ namespace Gal {
     constexpr auto EditKeyboardId = 0x1;
     constexpr auto ListboxItemHeight = 45;
 
-    namespace detail
-    {
-        class CoreEdit : public CoreWindow
-        {
+    namespace detail {
+        class CoreEdit : public CoreWindow {
         public:
-            [[nodiscard]] const char* get_text() const {return m_str;}
+            [[nodiscard]] const char *get_text() const { return m_str; }
 
-            void set_text(const char* str)
-            {
-                if(str != nullptr && std::strlen(str) < sizeof(m_str))
-                {
+            void set_text(const char *str) {
+                if (str != nullptr && std::strlen(str) < sizeof(m_str)) {
                     std::strcpy(m_str, str);
                 }
             }
 
-            void set_keyboard_style(CoreKeyboard::KEYBOARD_BOARD style) {m_keyboard_style = style;}
+            void set_keyboard_style(CoreKeyboard::KEYBOARD_BOARD style) { m_keyboard_style = style; }
 
         protected:
-            void pre_create_window() override
-            {
+            void pre_create_window() override {
                 m_attribution = CoreWindow::WINDOW_ATTRIBUTION::VISIBLE | CoreWindow::WINDOW_ATTRIBUTION::FOCUS;
                 m_keyboard_style = CoreKeyboard::KEYBOARD_BOARD::ALL;
                 m_font_type = CoreTheme::get_font(CoreTheme::FONT_TYPE::DEFAULT);
@@ -2621,16 +2626,13 @@ namespace Gal {
                 set_text(CoreWindow::m_str);
             }
 
-            void on_paint() override
-            {
+            void on_paint() override {
                 auto rect = get_screen_rect();
                 auto keyboard_rect = s_keyboard.get_screen_rect();
-                switch (m_status) {
-                    case CoreWindow::WINDOW_STATUS::NORMAL:
-                    {
+                switch (m_state) {
+                    case CoreWindow::WINDOW_STATE::NORMAL: {
                         auto z_order = m_parent->get_z_order();
-                        if(m_z_order > z_order)
-                        {
+                        if (m_z_order > z_order) {
                             s_keyboard.disconnect();
                             m_z_order = z_order;
                             m_surface->show_layer(keyboard_rect, m_z_order);
@@ -2640,11 +2642,9 @@ namespace Gal {
                         CoreWord::draw_string_in_rect(m_surface, z_order, m_str, rect, m_font_type, m_font_color, CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_NORMAL), CoreWord::ALIGN_TYPE::HORIZONTAL_CENTER | CoreWord::ALIGN_TYPE::VERTICAL_CENTER);
                         break;
                     }
-                    case CoreWindow::WINDOW_STATUS::FOCUSED:
-                    {
+                    case CoreWindow::WINDOW_STATE::FOCUSED: {
                         auto z_order = m_parent->get_z_order();
-                        if(m_z_order > z_order)
-                        {
+                        if (m_z_order > z_order) {
                             s_keyboard.disconnect();
                             m_z_order = z_order;
                             m_surface->show_layer(keyboard_rect, m_z_order);
@@ -2654,11 +2654,9 @@ namespace Gal {
                         CoreWord::draw_string_in_rect(m_surface, z_order, m_str, rect, m_font_type, m_font_color, CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_FOCUS), CoreWord::ALIGN_TYPE::HORIZONTAL_CENTER | CoreWord::ALIGN_TYPE::VERTICAL_CENTER);
                         break;
                     }
-                    case CoreWindow::WINDOW_STATUS::PUSHED:
-                    {
+                    case CoreWindow::WINDOW_STATE::PUSHED: {
                         auto z_order = m_parent->get_z_order();
-                        if(m_z_order == z_order)
-                        {
+                        if (m_z_order == z_order) {
                             m_z_order = static_cast<CoreSurface::Z_ORDER_LEVEL>(static_cast<std::underlying_type_t<CoreSurface::Z_ORDER_LEVEL>>(m_z_order) + 1);
                             m_attribution = CoreWindow::WINDOW_ATTRIBUTION::VISIBLE | CoreWindow::WINDOW_ATTRIBUTION::FOCUS | CoreWindow::WINDOW_ATTRIBUTION::PRIORITY;
                             show_keyboard();
@@ -2666,10 +2664,8 @@ namespace Gal {
                         m_surface->fill_rect(rect, CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_PUSHED), z_order);
                         m_surface->draw_rect(rect, CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_BORDER), m_z_order, 2);
                         (std::strlen(m_str_input) != 0)
-                                ?
-                                CoreWord::draw_string_in_rect(m_surface, z_order, m_str_input, rect, m_font_type, m_font_color, CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_PUSHED), CoreWord::ALIGN_TYPE::HORIZONTAL_CENTER | CoreWord::ALIGN_TYPE::VERTICAL_CENTER)
-                                :
-                                CoreWord::draw_string_in_rect(m_surface, z_order, m_str, rect, m_font_type, m_font_color, CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_PUSHED), CoreWord::ALIGN_TYPE::HORIZONTAL_CENTER | CoreWord::ALIGN_TYPE::VERTICAL_CENTER);
+                                ? CoreWord::draw_string_in_rect(m_surface, z_order, m_str_input, rect, m_font_type, m_font_color, CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_PUSHED), CoreWord::ALIGN_TYPE::HORIZONTAL_CENTER | CoreWord::ALIGN_TYPE::VERTICAL_CENTER)
+                                : CoreWord::draw_string_in_rect(m_surface, z_order, m_str, rect, m_font_type, m_font_color, CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_PUSHED), CoreWord::ALIGN_TYPE::HORIZONTAL_CENTER | CoreWord::ALIGN_TYPE::VERTICAL_CENTER);
                         break;
                     }
                     default:
@@ -2678,62 +2674,52 @@ namespace Gal {
                 }
             }
 
-            void on_focus() override
-            {
-                m_status = CoreWindow::WINDOW_STATUS::FOCUSED;
+            void on_focus() override {
+                m_state = CoreWindow::WINDOW_STATE::FOCUSED;
                 on_paint();
             }
 
-            void on_blur() override
-            {
-                m_status = CoreWindow::WINDOW_STATUS::NORMAL;
+            void on_blur() override {
+                m_state = CoreWindow::WINDOW_STATE::NORMAL;
                 on_paint();
             }
 
-            void on_navigate(NAVIGATION_KEY key) override
-            {
-                switch(key)
-                {
+            void on_navigate(NAVIGATION_KEY key) override {
+                switch (key) {
                     case CoreWindow::NAVIGATION_KEY::ENTER:
-                        (m_status == CoreWindow::WINDOW_STATUS::PUSHED)
-                                ?
-                                s_keyboard.on_navigate(key)
-                                :
-                                (
-                                        on_touch(m_window_rect.m_left, m_window_rect.m_top, CoreWindow::TOUCH_ACTION::DOWN),
-                                        on_touch(m_window_rect.m_left, m_window_rect.m_top, CoreWindow::TOUCH_ACTION::DOWN)
-                                );
+                        (m_state == CoreWindow::WINDOW_STATE::PUSHED)
+                                ? s_keyboard.on_navigate(key)
+                                : (
+                                          on_touch(m_window_rect.m_left, m_window_rect.m_top, CoreWindow::TOUCH_ACTION::DOWN),
+                                          on_touch(m_window_rect.m_left, m_window_rect.m_top, CoreWindow::TOUCH_ACTION::DOWN));
                         break;
                     case CoreWindow::NAVIGATION_KEY::BACKWARD:
                     case CoreWindow::NAVIGATION_KEY::FORWARD:
-                        (m_status == CoreWindow::WINDOW_STATUS::PUSHED) ? s_keyboard.on_navigate(key) : CoreWindow::on_navigate(key);
+                        (m_state == CoreWindow::WINDOW_STATE::PUSHED) ? s_keyboard.on_navigate(key) : CoreWindow::on_navigate(key);
                         break;
                 }
             }
 
-            void on_touch(int x, int y, TOUCH_ACTION action) override
-            {
+            void on_touch(int x, int y, TOUCH_ACTION action) override {
                 (action == CoreWindow::TOUCH_ACTION::DOWN) ? on_touch_down(x, y) : on_touch_up(x, y);
             }
 
-            void on_keyboard_click(IdType id, const std::any& param)
-            {
+            void on_keyboard_click(IdType id, const std::any &param) {
                 switch (std::any_cast<CoreKeyboard::KEYBOARD_CLICK>(param)) {
                     case CoreKeyboard::KEYBOARD_CLICK::CHARACTER:
                         std::strcpy(m_str_input, s_keyboard.get_str());
                         on_paint();
                         break;
                     case CoreKeyboard::KEYBOARD_CLICK::ENTER:
-                        if(std::strlen(m_str_input) != 0)
-                        {
+                        if (std::strlen(m_str_input) != 0) {
                             std::memcpy(m_str, m_str_input, sizeof(m_str_input));
                         }
-                        m_status = CoreWindow::WINDOW_STATUS::FOCUSED;
+                        m_state = CoreWindow::WINDOW_STATE::FOCUSED;
                         on_paint();
                         break;
                     case CoreKeyboard::KEYBOARD_CLICK::ESCAPE:
                         std::memset(m_str_input, 0, sizeof(m_str_input));
-                        m_status = CoreWindow::WINDOW_STATUS::FOCUSED;
+                        m_state = CoreWindow::WINDOW_STATE::FOCUSED;
                         on_paint();
                         break;
                     default:
@@ -2743,57 +2729,41 @@ namespace Gal {
             }
 
         private:
-            void show_keyboard()
-            {
+            void show_keyboard() {
                 s_keyboard.connect(this, EditKeyboardId, m_keyboard_style);
                 s_keyboard.set_on_click(static_cast<WindowCallback>(&CoreEdit::on_keyboard_click));
                 s_keyboard.show_window();
             }
 
-            void on_touch_down(int x, int y)
-            {
-                if(m_window_rect.is_in_rect(x, y))
-                {
+            void on_touch_down(int x, int y) {
+                if (m_window_rect.is_in_rect(x, y)) {
                     //click edit box
-                    if(m_status == CoreWindow::WINDOW_STATUS::NORMAL)
-                    {
+                    if (m_state == CoreWindow::WINDOW_STATE::NORMAL) {
                         m_parent->set_child_focus(this);
                     }
-                }
-                else
-                {
+                } else {
                     auto rect = s_keyboard.get_window_rect();
                     rect.move_rect(m_window_rect.m_left, m_window_rect.m_top);
-                    if(rect.is_in_rect(x, y))
-                    {
+                    if (rect.is_in_rect(x, y)) {
                         //click key board
                         CoreWindow::on_touch(x, y, CoreWindow::TOUCH_ACTION::DOWN);
-                    }
-                    else if(m_status == CoreWindow::WINDOW_STATUS::PUSHED)
-                    {
-                        m_status = CoreWindow::WINDOW_STATUS::FOCUSED;
+                    } else if (m_state == CoreWindow::WINDOW_STATE::PUSHED) {
+                        m_state = CoreWindow::WINDOW_STATE::FOCUSED;
                         on_paint();
                     }
                 }
             }
 
-            void on_touch_up(int x, int y)
-            {
-                if(m_status == CoreWindow::WINDOW_STATUS::FOCUSED)
-                {
-                    m_status = CoreWindow::WINDOW_STATUS::PUSHED;
+            void on_touch_up(int x, int y) {
+                if (m_state == CoreWindow::WINDOW_STATE::FOCUSED) {
+                    m_state = CoreWindow::WINDOW_STATE::PUSHED;
                     on_paint();
-                }
-                else if(m_status == CoreWindow::WINDOW_STATUS::PUSHED)
-                {
-                    if(m_window_rect.is_in_rect(x, y))
-                    {
+                } else if (m_state == CoreWindow::WINDOW_STATE::PUSHED) {
+                    if (m_window_rect.is_in_rect(x, y)) {
                         // click edit box
-                        m_status = CoreWindow::WINDOW_STATUS::FOCUSED;
+                        m_state = CoreWindow::WINDOW_STATE::FOCUSED;
                         on_paint();
-                    }
-                    else
-                    {
+                    } else {
                         CoreWindow::on_touch(x, y, CoreWindow::TOUCH_ACTION::UP);
                     }
                 }
@@ -2805,13 +2775,10 @@ namespace Gal {
             char m_str[MaxEditStringLength];
         };
 
-        class CoreLabel : public CoreWindow
-        {
+        class CoreLabel : public CoreWindow {
         public:
-            void on_paint() override
-            {
-                if(m_str)
-                {
+            void on_paint() override {
+                if (m_str) {
                     auto rect = get_screen_rect();
                     auto background_color = m_background_color ? m_background_color : m_parent->get_background_color();
                     m_surface->fill_rect(rect, background_color, m_z_order);
@@ -2820,57 +2787,48 @@ namespace Gal {
             }
 
         protected:
-            void pre_create_window() override
-            {
+            void pre_create_window() override {
                 m_attribution = CoreWindow::WINDOW_ATTRIBUTION::VISIBLE;
                 m_font_color = CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_FONT);
                 m_font_type = CoreTheme::get_font(CoreTheme::FONT_TYPE::DEFAULT);
             }
         };
 
-        class CoreListbox : public CoreWindow
-        {
+        class CoreListbox : public CoreWindow {
         public:
-            void set_on_change(WindowCallback on_change) {this->m_on_change = on_change;}
+            void set_on_change(WindowCallback on_change) { this->m_on_change = on_change; }
 
-            [[nodiscard]] size_t get_item_count() const {return m_item_array.size();}
+            [[nodiscard]] size_t get_item_count() const { return m_item_array.size(); }
 
-            void add_item(char* str)
-            {
+            void add_item(char *str) {
                 m_item_array.push_back(str);
                 update_list_list();
             }
 
-            void clear_item()
-            {
+            void clear_item() {
                 m_item_array.clear();
                 update_list_list();
             }
 
-            void select_item(size_t index)
-            {
+            void select_item(size_t index) {
                 GalAssert(index < m_item_array.size());
                 m_select_item = index;
             }
 
         protected:
-            void pre_create_window() override
-            {
+            void pre_create_window() override {
                 m_attribution = CoreWindow::WINDOW_ATTRIBUTION::VISIBLE | CoreWindow::WINDOW_ATTRIBUTION::FOCUS;
                 m_select_item = 0;
                 m_font_type = CoreTheme::get_font(CoreTheme::FONT_TYPE::DEFAULT);
                 m_font_color = CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_FONT);
             }
 
-            void on_paint() override
-            {
+            void on_paint() override {
                 auto rect = get_screen_rect();
-                switch (m_status) {
-                    case CoreWindow::WINDOW_STATUS::NORMAL:
-                    {
+                switch (m_state) {
+                    case CoreWindow::WINDOW_STATE::NORMAL: {
                         auto z_order = m_parent->get_z_order();
-                        if(m_z_order > z_order)
-                        {
+                        if (m_z_order > z_order) {
                             m_z_order = z_order;
                             m_surface->show_layer(m_list_screen_rect, m_z_order);
                             m_attribution = CoreWindow::WINDOW_ATTRIBUTION::VISIBLE | CoreWindow::WINDOW_ATTRIBUTION::FOCUS;
@@ -2879,11 +2837,9 @@ namespace Gal {
                         CoreWord::draw_string_in_rect(m_surface, m_z_order, m_item_array[m_select_item], rect, m_font_type, m_font_color, CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_NORMAL), CoreWord::ALIGN_TYPE::HORIZONTAL_CENTER | CoreWord::ALIGN_TYPE::VERTICAL_CENTER);
                         break;
                     }
-                    case CoreWindow::WINDOW_STATUS::FOCUSED:
-                    {
+                    case CoreWindow::WINDOW_STATE::FOCUSED: {
                         auto z_order = m_parent->get_z_order();
-                        if(m_z_order > z_order)
-                        {
+                        if (m_z_order > z_order) {
                             m_z_order = z_order;
                             m_surface->show_layer(m_list_screen_rect, m_z_order);
                             m_attribution = CoreWindow::WINDOW_ATTRIBUTION::VISIBLE | CoreWindow::WINDOW_ATTRIBUTION::FOCUS;
@@ -2892,16 +2848,13 @@ namespace Gal {
                         CoreWord::draw_string_in_rect(m_surface, m_z_order, m_item_array[m_select_item], rect, m_font_type, m_font_color, CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_FOCUS), CoreWord::ALIGN_TYPE::HORIZONTAL_CENTER | CoreWord::ALIGN_TYPE::VERTICAL_CENTER);
                         break;
                     }
-                    case CoreWindow::WINDOW_STATUS::PUSHED:
-                    {
+                    case CoreWindow::WINDOW_STATE::PUSHED: {
                         m_surface->fill_rect(rect, CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_PUSHED), m_z_order);
                         m_surface->draw_rect(rect, CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_BORDER), m_z_order, 2);
                         CoreWord::draw_string_in_rect(m_surface, m_z_order, m_item_array[m_select_item], rect, m_font_type, utility::build_rgb(2, 124, 165), utility::build_argb(0, 0, 0, 0), CoreWord::ALIGN_TYPE::HORIZONTAL_CENTER | CoreWord::ALIGN_TYPE::VERTICAL_CENTER);
                         //draw list
-                        if(!m_item_array.empty())
-                        {
-                            if(m_z_order == m_parent->get_z_order())
-                            {
+                        if (!m_item_array.empty()) {
+                            if (m_z_order == m_parent->get_z_order()) {
                                 m_z_order = static_cast<CoreSurface::Z_ORDER_LEVEL>(static_cast<std::underlying_type_t<CoreSurface::Z_ORDER_LEVEL>>(m_z_order) + 1);
                             }
                             m_attribution = CoreWindow::WINDOW_ATTRIBUTION::VISIBLE | CoreWindow::WINDOW_ATTRIBUTION::FOCUS | CoreWindow::WINDOW_ATTRIBUTION::PRIORITY;
@@ -2915,35 +2868,30 @@ namespace Gal {
                 }
             }
 
-            void on_focus() override
-            {
-                m_status = CoreWindow::WINDOW_STATUS::FOCUSED;
+            void on_focus() override {
+                m_state = CoreWindow::WINDOW_STATE::FOCUSED;
                 on_paint();
             }
 
-            void on_blur() override
-            {
-                m_status = CoreWindow::WINDOW_STATUS::NORMAL;
+            void on_blur() override {
+                m_state = CoreWindow::WINDOW_STATE::NORMAL;
                 on_paint();
             }
 
-            void on_navigate(NAVIGATION_KEY key) override
-            {
+            void on_navigate(NAVIGATION_KEY key) override {
                 switch (key) {
                     case CoreWindow::NAVIGATION_KEY::ENTER:
                         on_touch(m_window_rect.m_left, m_window_rect.m_top, CoreWindow::TOUCH_ACTION::DOWN);
                         on_touch(m_window_rect.m_left, m_window_rect.m_top, CoreWindow::TOUCH_ACTION::UP);
                         return;
                     case CoreWindow::NAVIGATION_KEY::BACKWARD:
-                        if(m_status != CoreWindow::WINDOW_STATUS::PUSHED)
-                        {
+                        if (m_state != CoreWindow::WINDOW_STATE::PUSHED) {
                             return CoreWindow::on_navigate(key);
                         }
                         m_select_item = (m_select_item > 0) ? (m_select_item - 1) : m_select_item;
                         return show_list();
                     case CoreWindow::NAVIGATION_KEY::FORWARD:
-                        if(m_status != CoreWindow::WINDOW_STATUS::PUSHED)
-                        {
+                        if (m_state != CoreWindow::WINDOW_STATE::PUSHED) {
                             return CoreWindow::on_navigate(key);
                         }
                         m_select_item = (m_select_item < (m_item_array.size() - 1)) ? (m_select_item + 1) : m_select_item;
@@ -2951,14 +2899,12 @@ namespace Gal {
                 }
             }
 
-            void on_touch(int x, int y, TOUCH_ACTION action) override
-            {
+            void on_touch(int x, int y, TOUCH_ACTION action) override {
                 (action == CoreWindow::TOUCH_ACTION::DOWN) ? on_touch_down(x, y) : on_touch_up(x, y);
             }
 
         private:
-            void update_list_list()
-            {
+            void update_list_list() {
                 m_list_window_rect = m_window_rect;
                 m_list_window_rect.m_top = m_window_rect.m_bottom + 1;
                 m_list_window_rect.m_bottom = m_list_window_rect.m_top + static_cast<int>(m_item_array.size() * ListboxItemHeight);
@@ -2968,95 +2914,403 @@ namespace Gal {
                 m_list_screen_rect.m_bottom = m_list_screen_rect.m_top + static_cast<int>(m_item_array.size() * ListboxItemHeight);
             }
 
-            void show_list()
-            {
+            void show_list() {
                 //draw all items
                 auto left = m_list_screen_rect.m_left;
                 auto top = m_list_screen_rect.m_top;
                 auto right = m_list_screen_rect.m_right;
-                for(auto i = 0; i < m_item_array.size(); ++i)
-                {
+                for (auto i = 0; i < m_item_array.size(); ++i) {
                     auto rect = CoreRect(left, top + i * ListboxItemHeight, right, top + i * ListboxItemHeight + ListboxItemHeight);
-                    if(m_select_item == i)
-                    {
+                    if (m_select_item == i) {
                         m_surface->fill_rect(rect, CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_FOCUS), m_z_order);
                         CoreWord::draw_string_in_rect(m_surface, m_z_order, m_item_array[i], rect, m_font_type, m_font_color, CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_FOCUS), CoreWord::ALIGN_TYPE::HORIZONTAL_CENTER | CoreWord::ALIGN_TYPE::VERTICAL_CENTER);
-                    }
-                    else
-                    {
+                    } else {
                         m_surface->fill_rect(rect, utility::build_rgb(17, 17, 17), m_z_order);
                         CoreWord::draw_string_in_rect(m_surface, m_z_order, m_item_array[i], rect, m_font_type, m_font_color, utility::build_rgb(17, 17, 17), CoreWord::ALIGN_TYPE::HORIZONTAL_CENTER | CoreWord::ALIGN_TYPE::VERTICAL_CENTER);
                     }
                 }
             }
 
-            void on_touch_down(int x, int y)
-            {
-                if(m_window_rect.is_in_rect(x, y))
-                {
+            void on_touch_down(int x, int y) {
+                if (m_window_rect.is_in_rect(x, y)) {
                     //click base
-                    if(m_status == CoreWindow::WINDOW_STATUS::NORMAL)
-                    {
+                    if (m_state == CoreWindow::WINDOW_STATE::NORMAL) {
                         m_parent->set_child_focus(this);
                     }
-                }
-                else if(m_list_window_rect.is_in_rect(x, y))
-                {
+                } else if (m_list_window_rect.is_in_rect(x, y)) {
                     //click extend list
                     CoreWindow::on_touch(x, y, CoreWindow::TOUCH_ACTION::DOWN);
-                }
-                else
-                {
-                    if(m_status == CoreWindow::WINDOW_STATUS::PUSHED)
-                    {
-                        m_status = CoreWindow::WINDOW_STATUS::FOCUSED;
+                } else {
+                    if (m_state == CoreWindow::WINDOW_STATE::PUSHED) {
+                        m_state = CoreWindow::WINDOW_STATE::FOCUSED;
                         on_paint();
-                        if(m_on_change)
-                        {
+                        if (m_on_change) {
                             (m_parent->*m_on_change)(m_id, m_select_item);
                         }
                     }
                 }
             }
 
-            void on_touch_up(int x, int y)
-            {
-                if(m_status == CoreWindow::WINDOW_STATUS::FOCUSED)
-                {
-                    m_status = CoreWindow::WINDOW_STATUS::PUSHED;
+            void on_touch_up(int x, int y) {
+                if (m_state == CoreWindow::WINDOW_STATE::FOCUSED) {
+                    m_state = CoreWindow::WINDOW_STATE::PUSHED;
                     on_paint();
-                }
-                else if(m_status == CoreWindow::WINDOW_STATUS::PUSHED)
-                {
-                    if(m_window_rect.is_in_rect(x, y))
-                    {
+                } else if (m_state == CoreWindow::WINDOW_STATE::PUSHED) {
+                    if (m_window_rect.is_in_rect(x, y)) {
                         //click base
-                        m_status = CoreWindow::WINDOW_STATUS::FOCUSED;
+                        m_state = CoreWindow::WINDOW_STATE::FOCUSED;
                         on_paint();
-                    }
-                    else if(m_list_window_rect.is_in_rect(x, y))
-                    {
+                    } else if (m_list_window_rect.is_in_rect(x, y)) {
                         //click extend list
-                        m_status = CoreWindow::WINDOW_STATUS::FOCUSED;
+                        m_state = CoreWindow::WINDOW_STATE::FOCUSED;
                         select_item((y - m_list_window_rect.m_top) / ListboxItemHeight);
                         on_paint();
-                        if(m_on_change)
-                        {
+                        if (m_on_change) {
                             (m_parent->*m_on_change)(m_id, m_select_item);
                         }
-                    }
-                    else
-                    {
+                    } else {
                         CoreWindow::on_touch(x, y, CoreWindow::TOUCH_ACTION::UP);
                     }
                 }
             }
 
             size_t m_select_item;
-            std::vector<const char*> m_item_array;
+            std::vector<const char *> m_item_array;
             CoreRect m_list_window_rect;//rect relative to parent wnd
             CoreRect m_list_screen_rect;//rect relative to physical screen(framebuffer)
             WindowCallback m_on_change;
         };
+    }
+
+    constexpr auto MaxSlideGroupPages = 5;
+    //constexpr auto GestureSwipeStep = 300; //for arm
+    constexpr auto GestureSwipeStep = 10; //for PC & ANDROID
+    constexpr auto GestureMoveThreshold = 10;
+
+    namespace detail {
+        class CoreGesture;
+
+        class CoreSlideGroup : public CoreWindow
+        {
+        public:
+            enum class SET_SLIDE_STATE {
+                INVALID_INDEX = -1,
+                INVALID_SLIDE = -2,
+                SUCCESS = 0
+            };
+
+            enum class ADD_SLIDE_STATE {
+                INVALID_SLIDE = -1,
+                EXIST_SLIDE = -2,
+                GROUP_FULL = -3,
+                SUCCESS = 0
+            };
+
+            CoreSlideGroup();
+
+            SET_SLIDE_STATE set_active_slide(int index, bool redraw = true)
+            {
+                if(index >= MaxSlideGroupPages || index < 0) {return SET_SLIDE_STATE::INVALID_INDEX;}
+                if(m_slides[index] == nullptr) {return SET_SLIDE_STATE::INVALID_SLIDE;}
+
+                m_active_slide_index = index;
+                for(auto i = 0; i < MaxSlideGroupPages; ++i)
+                {
+                    auto& slide = m_slides[i];
+                    if(slide == nullptr) {continue;}
+
+                    if(i == index)
+                    {
+                        slide->get_surface()->set_active(true);
+                        add_child_to_tail(slide);
+                        if(redraw)
+                        {
+                            slide->get_surface()->flush_screen(get_screen_rect());
+                        }
+                    }
+                    else
+                    {
+                        slide->get_surface()->set_active(false);
+                    }
+                }
+                return SET_SLIDE_STATE::SUCCESS;
+            }
+
+            [[nodiscard]] CoreWindow* get_slide(int index) const {return (index < m_slides.size() && index >= 0) ? m_slides[index] : nullptr;}
+
+            [[nodiscard]] CoreWindow* get_active_slide() const {return m_slides[m_active_slide_index];}
+
+            [[nodiscard]] int get_active_slide_index() const {return m_active_slide_index;}
+
+            ADD_SLIDE_STATE add_slide(
+                    CoreWindow* slide, IdType resource_id,
+                    int x, int y,
+                    int width, int height,
+                    CoreWindow::window_tree* child_tree = nullptr,
+                    CoreSurface::Z_ORDER_LEVEL max_z_order = CoreSurface::Z_ORDER_LEVEL::LOWEST)
+            {
+                if(slide == nullptr) {return ADD_SLIDE_STATE::INVALID_SLIDE;}
+
+                auto old_surface = get_surface();
+                auto new_surface = old_surface->get_display()->alloc_surface(max_z_order);
+                new_surface->set_active(false);
+                set_surface(new_surface);
+
+                slide->connect(this, resource_id, nullptr, x, y, width, height, child_tree);
+                set_surface(old_surface);
+
+                for(auto& each : m_slides)
+                {
+                    if(each == slide)
+                    {
+                        // slide already exist
+                        GalAssert(false);
+                        return ADD_SLIDE_STATE::EXIST_SLIDE;
+                    }
+                }
+
+                //new slide
+                for(auto& each : m_slides)
+                {
+                    if(each == nullptr)
+                    {
+                        each = slide;
+                        slide->show_window();
+                        return ADD_SLIDE_STATE::SUCCESS;
+                    }
+                }
+
+                //no more slide can be add
+                GalAssert(false);
+                return ADD_SLIDE_STATE::GROUP_FULL;
+            }
+
+            void disable_all_slide()
+            {
+                for(auto& slide : m_slides)
+                {
+                    if(slide)
+                    {
+                        slide->get_surface()->set_active(false);
+                    }
+                }
+            }
+
+            void on_touch(int x, int y, TOUCH_ACTION action) override;
+
+            void on_navigate(NAVIGATION_KEY key) override
+            {
+                if(auto slide = m_slides[m_active_slide_index]; slide)
+                {
+                    slide->on_navigate(key);
+                }
+            }
+
+        protected:
+            std::array<CoreWindow*, MaxSlideGroupPages> m_slides;
+            int m_active_slide_index;
+            CoreGesture* m_gesture;
+        };
+
+        class CoreGesture
+        {
+        public:
+            enum class TOUCH_STATE
+            {
+                MOVE,
+                IDLE
+            };
+
+            enum class SWIPE_STATE
+            {
+                INVALID_SLIDE_GROUP = -1,
+                INVALID_ACTIVE_SLIDE_INDEX = -2,
+                INVALID_SLIDE_SURFACE = -3,
+            };
+
+            explicit CoreGesture(CoreSlideGroup* group)
+                :
+                  m_down_x(0), m_move_x(0),
+                  m_state(TOUCH_STATE::IDLE), m_slide_group(group) {};
+
+            bool handle_swipe(int x, int y, CoreKeyboard::TOUCH_ACTION action)
+            {
+                if(action == CoreWindow::TOUCH_ACTION::DOWN)
+                {
+                    if(m_state == TOUCH_STATE::IDLE)
+                    {
+                        m_state = TOUCH_STATE::MOVE;
+                        m_move_x = x;
+                        m_down_x = x;
+                        return true;
+                    }
+                    else
+                    {
+                        return on_move(x);
+                    }
+                }
+                else if(action == CoreWindow::TOUCH_ACTION::UP)
+                {
+                    if(m_state == TOUCH_STATE::MOVE)
+                    {
+                        m_state = TOUCH_STATE::IDLE;
+                        return on_swipe(x);
+                    }
+                    else
+                    {
+                        return false;
+                    }
+                }
+                return true;
+            }
+
+        private:
+            bool on_move(int x)
+            {
+                if(m_slide_group == nullptr) {return true;}
+                if(utility::abs(x - m_move_x) < GestureMoveThreshold) { return false;}
+
+                m_slide_group->disable_all_slide();
+                m_move_x = x;
+                (m_move_x > m_down_x) ? move_right() : move_left();
+                return false;
+            }
+
+            bool on_swipe(int x)
+            {
+                if(m_slide_group == nullptr) {return true;}
+                if((m_down_x == m_move_x) && utility::abs(x - m_down_x) < GestureMoveThreshold) {return true;}
+
+                m_slide_group->disable_all_slide();
+                auto page = -1;
+                m_move_x = x;
+                page = (m_move_x > m_down_x) ? swipe_right() : swipe_left();
+                if(page >= 0)
+                {
+                    m_slide_group->set_active_slide(page);
+                }
+                else
+                {
+                    m_slide_group->set_active_slide(m_slide_group->get_active_slide_index(), false);
+                }
+                return false;
+            }
+
+            int swipe_left()
+            {
+                if(m_slide_group == nullptr) {return static_cast<int>(SWIPE_STATE::INVALID_SLIDE_GROUP);}
+
+                auto index = m_slide_group->get_active_slide_index();
+                auto slide1 = m_slide_group->get_slide(index + 1);
+                auto slide2 = m_slide_group->get_slide(index);
+                if(slide1 == nullptr || slide2 == nullptr)
+                {
+                    return static_cast<int>(SWIPE_STATE::INVALID_ACTIVE_SLIDE_INDEX);
+                }
+
+                auto surface1 = slide1->get_surface();
+                auto surface2 = slide2->get_surface();
+                if(surface1->get_display() != surface2->get_display()) { return static_cast<int>(SWIPE_STATE::INVALID_SLIDE_SURFACE);}
+
+                auto step = m_down_x - m_move_x;
+                auto rect = m_slide_group->get_screen_rect();
+                while(step < rect.get_width())
+                {
+                    surface1->get_display()->swipe_surface(surface2, surface1, rect, step);
+                    step += GestureSwipeStep;
+                }
+                if(step != rect.get_width())
+                {
+                    surface1->get_display()->swipe_surface(surface2, surface1, rect, rect.get_width());
+                }
+
+                return index + 1;
+            }
+
+            int swipe_right()
+            {
+                if(m_slide_group == nullptr) {return static_cast<int>(SWIPE_STATE::INVALID_SLIDE_GROUP);}
+
+                auto index = m_slide_group->get_active_slide_index();
+                auto slide1 = m_slide_group->get_slide(index - 1);
+                auto slide2 = m_slide_group->get_slide(index);
+                if(slide1 == nullptr || slide2 == nullptr)
+                {
+                    return static_cast<int>(SWIPE_STATE::INVALID_ACTIVE_SLIDE_INDEX);
+                }
+
+                auto surface1 = slide1->get_surface();
+                auto surface2 = slide2->get_surface();
+                if(surface1->get_display() != surface2->get_display()) { return static_cast<int>(SWIPE_STATE::INVALID_SLIDE_SURFACE);}
+
+                auto rect = m_slide_group->get_screen_rect();
+                auto step = rect.get_width() - (m_move_x - m_down_x);
+                while(step > 0)
+                {
+                    surface1->get_display()->swipe_surface(surface1, surface2, rect, step);
+                    step -= GestureSwipeStep;
+                }
+                if(step != rect.get_width())
+                {
+                    surface1->get_display()->swipe_surface(surface1, surface2, rect, 0);
+                }
+
+                return index - 1;
+            }
+
+            void move_left()
+            {
+                auto index = m_slide_group->get_active_slide_index();
+                auto slide1 = m_slide_group->get_slide(index + 1);
+                auto slide2 = m_slide_group->get_slide(index);
+                if(slide1 == nullptr || slide2 == nullptr) {return;}
+
+                auto surface1 = slide1->get_surface();
+                auto surface2 = slide2->get_surface();
+
+                if(auto display = surface1->get_display(); display == surface2->get_display())
+                {
+                    display->swipe_surface(surface2, surface1, m_slide_group->get_screen_rect(), (m_down_x - m_move_x));
+                }
+            }
+
+            void move_right()
+            {
+                auto index = m_slide_group->get_active_slide_index();
+                auto slide1 = m_slide_group->get_slide(index - 1);
+                auto slide2 = m_slide_group->get_slide(index);
+                if(slide1 == nullptr || slide2 == nullptr) {return;}
+
+                auto surface1 = slide1->get_surface();
+                auto surface2 = slide2->get_surface();
+
+                if(auto display = surface1->get_display(); display == surface2->get_display())
+                {
+                    auto rect = m_slide_group->get_screen_rect();
+                    display->swipe_surface(surface1, surface2, rect, (rect.get_width() - (m_move_x - m_down_x)));
+                }
+            }
+
+            int m_down_x;
+            int m_move_x;
+            TOUCH_STATE m_state;
+            CoreSlideGroup* m_slide_group;
+        };
+
+        CoreSlideGroup::CoreSlideGroup()
+            :
+              m_active_slide_index(0),
+              m_gesture(new CoreGesture(this)),
+              m_slides({nullptr}){}
+
+        void CoreSlideGroup::on_touch(int x, int y, TOUCH_ACTION action)
+        {
+            x = m_window_rect.distance_of_left(x);
+            y = m_window_rect.distance_of_top(y);
+            if(m_gesture->handle_swipe(x, y, action))
+            {
+                m_slides[m_active_slide_index]->on_touch(x, y, action);
+            }
+        }
     }
 }
