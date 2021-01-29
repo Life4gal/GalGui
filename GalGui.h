@@ -9,6 +9,7 @@
 #include <vector>
 #include <any>
 #include <string>
+#include <numeric>
 
 #include <cstring>
 
@@ -2264,6 +2265,8 @@ namespace Gal {
     constexpr KeyboardIdType CapsId = 0x14;
     constexpr KeyboardIdType SpaceId = ' ';
     constexpr KeyboardIdType BackId = 0x7F;
+    constexpr KeyboardIdType ArrowUpId = 0x1111;
+    constexpr KeyboardIdType ArrowDownId = 0x2222;
 
     constexpr KeyboardCaptionType EscChar = "Esc";
     constexpr KeyboardCaptionType DotChar = ".";
@@ -2273,6 +2276,8 @@ namespace Gal {
     constexpr KeyboardCaptionType CapsChar = "Caps";
     constexpr KeyboardCaptionType SpaceChar = "Space";
     constexpr KeyboardCaptionType BackChar = "Back";
+    constexpr KeyboardCaptionType ArrowUpChar = "+";
+    constexpr KeyboardCaptionType ArrowDownChar = "-";
 
     namespace utility{
         constexpr KeyboardSizeType get_x_in_keyboard(KeyboardSizeType column)
@@ -3312,5 +3317,198 @@ namespace Gal {
                 m_slides[m_active_slide_index]->on_touch(x, y, action);
             }
         }
+
+        class CoreSpinBox;
+        class CoreSpinBoxButton : public CoreButton
+        {
+            friend class CoreSpinBox;
+            void on_touch(int x, int y, TOUCH_ACTION action) override;
+            CoreSpinBox* m_spin_box;
+        };
+
+        class CoreSpinBox : public CoreWindow
+        {
+            friend class CoreSpinBoxButton;
+        public:
+            [[nodiscard]] int get_value() const {return m_value;}
+
+            void set_value(int value) {m_value = value; m_curr_value = value;}
+
+            void set_min_max(int min, int max) {m_min = min; m_max = max;}
+
+            void set_step(int step) {m_step = step;}
+
+            [[nodiscard]] int get_min() const {return m_min;}
+
+            [[nodiscard]] int get_max() const {return m_max;}
+
+            [[nodiscard]] int get_step() const {return m_step;}
+
+            void set_value_digit(int digit) {m_digit = digit;}
+
+            [[nodiscard]] int get_value_digit() const {return m_digit;}
+
+            void set_on_change(WindowCallback on_change) {m_on_change = on_change;}
+
+        protected:
+            void on_paint() override
+            {
+                auto rect = get_screen_rect();
+                rect.m_right = rect.m_left + (rect.get_width() * 2 / 3);
+                m_surface->fill_rect(rect, CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_NORMAL), m_z_order);
+                CoreWord::draw_value_in_rect(m_surface, m_parent->get_z_order(), m_curr_value, m_digit, rect, m_font_type, m_font_color, CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_NORMAL), CoreWord::ALIGN_TYPE::HORIZONTAL_CENTER | CoreWord::ALIGN_TYPE::VERTICAL_CENTER);
+            }
+
+            void pre_create_window() override
+            {
+                m_attribution = CoreWindow::WINDOW_ATTRIBUTION::VISIBLE;
+                m_font_type = CoreTheme::get_font(CoreTheme::FONT_TYPE::DEFAULT);
+                m_font_color = CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_FONT);
+                m_max = 6;
+                m_min = 1;
+                m_digit = 0;
+                m_step = 1;
+                //link arrow button position
+                auto rect = get_window_rect();
+                m_button_down.m_spin_box = this;
+                m_button_up.m_spin_box = this;
+                m_button_down.connect(m_parent, ArrowDownId, ArrowDownChar, rect.m_left + rect.get_width() * 2 / 3, rect.m_top, rect.get_width() / 3, rect.get_height() / 2, nullptr);
+                m_button_up.connect(m_parent, ArrowUpId, ArrowUpChar, rect.m_left + rect.get_width() * 2 / 3, rect.m_top + rect.get_height() / 2, rect.get_width() / 3, rect.get_height() / 2, nullptr);
+            }
+
+            void on_arrow_button_clicked(TOUCH_ACTION action)
+            {
+                if(action == CoreWindow::TOUCH_ACTION::UP)
+                {
+                    if(m_curr_value + m_step < m_min) {return;}
+                    m_curr_value += m_step;
+                }
+                else
+                {
+                    if(m_curr_value + m_step > m_max) {return;}
+                    m_curr_value -= m_step;
+                }
+
+                m_curr_value -= m_step;
+                if(m_on_change)
+                {
+                    (m_parent->*m_on_change)(m_id, m_curr_value);
+                }
+                on_paint();
+            }
+
+            int m_curr_value;
+            int m_value;
+            int m_step;
+            int m_max;
+            int m_min;
+            int m_digit;
+            CoreSpinBoxButton m_button_up;
+            CoreSpinBoxButton m_button_down;
+            WindowCallback m_on_change;
+        };
+
+        void CoreSpinBoxButton::on_touch(int x, int y, TOUCH_ACTION action)
+        {
+            m_spin_box->on_arrow_button_clicked(action);
+            CoreButton::on_touch(x, y, action);
+        }
+
+        class CoreTable : public CoreWindow
+        {
+        public:
+            void set_sheet_align_type(CoreWord::ALIGN_TYPE align_type) {m_align_type = align_type;}
+
+            void set_all_row_height(unsigned int height)
+            {
+                std::fill(m_row_heights.begin(), m_row_heights.end(), height);
+            }
+
+            void set_all_column_width(unsigned int width)
+            {
+                std::fill(m_column_widths.begin(), m_column_widths.end(), width);
+            }
+
+            size_t set_row_height(size_t index, unsigned int height)
+            {
+                if(index < m_row_heights.size())
+                {
+                    m_row_heights[index] = height;
+                    return index;
+                }
+
+                return static_cast<size_t>(-1);
+            }
+
+            size_t set_column_width(size_t index, unsigned int width)
+            {
+                if(index < m_column_widths.size())
+                {
+                    m_column_widths[index] = width;
+                    return index;
+                }
+
+                return static_cast<size_t>(-1);
+            }
+
+            void set_item(size_t row, size_t column, const char* str, ColorType color)
+            {
+                draw_items(row, column, str, color);
+            }
+
+            [[nodiscard]] size_t get_row_size() const {return m_row_heights.size();}
+
+            [[nodiscard]] size_t get_column_size() const {return m_column_widths.size();}
+
+            CoreRect get_item_rect(size_t row, size_t column)
+            {
+                static CoreRect rect;
+                if(row >= m_row_heights.size() || column >= m_column_widths.size())
+                {
+                    return rect;
+                }
+                auto column_end = m_column_widths.begin();
+                auto row_end = m_row_heights.begin();
+                std::advance(column_end, column);
+                std::advance(row_end, row);
+                auto total_width = std::accumulate<decltype(m_column_widths.begin()), unsigned int>(m_column_widths.begin(), column_end, 0);
+                auto total_height = std::accumulate<decltype(m_row_heights.begin()), unsigned int>(m_row_heights.begin(), row_end, 0);
+
+                auto tmp_rect = get_screen_rect();
+                rect.m_left = tmp_rect.m_left + total_width;
+                rect.m_right = rect.m_left + m_column_widths[column];
+                if(rect.m_right > tmp_rect.m_right)
+                {
+                    rect.m_right = tmp_rect.m_right;
+                }
+                rect.m_top = tmp_rect.m_top + total_height;
+                rect.m_bottom = rect.m_top + m_row_heights[row];
+                if(rect.m_bottom > tmp_rect.m_bottom)
+                {
+                    rect.m_bottom = tmp_rect.m_bottom;
+                }
+                return rect;
+            }
+
+        protected:
+            void pre_create_window() override
+            {
+                m_attribution = CoreWindow::WINDOW_ATTRIBUTION::VISIBLE;
+                m_font_type = CoreTheme::get_font(CoreTheme::FONT_TYPE::DEFAULT);
+                m_font_color = CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_FONT);
+            }
+
+            void draw_items(size_t row, size_t col, const char* str, ColorType color)
+            {
+                auto rect = get_item_rect(row, col);
+                rect.move_rect(1, -1);
+                m_surface->fill_rect(rect, color, m_z_order);
+                CoreWord::draw_string_in_rect(m_surface, m_z_order, str, rect, m_font_type, m_font_color, utility::build_argb(0, 0, 0, 0), m_align_type);
+            }
+
+            CoreWord::ALIGN_TYPE m_align_type;
+            std::vector<unsigned int> m_row_heights;
+            std::vector<unsigned int> m_column_widths;
+        };
     }
 }
