@@ -12,6 +12,7 @@
 #include <numeric>
 
 #include <cstring>
+#include <cmath>
 
 // to-do
 #define GalAssert(condition) do{}while(0)
@@ -256,57 +257,282 @@ namespace Gal {
     }
 
     namespace detail {
+        class CorePoint
+        {
+        public:
+            constexpr explicit CorePoint() noexcept : m_x(0), m_y(0) {};
+
+            constexpr CorePoint(int x, int y) noexcept : m_x(x), m_y(y) {};
+
+            CorePoint operator+(const CorePoint& other) const noexcept
+            {
+                return {m_x + other.m_x, m_y + other.m_y};
+            }
+
+            CorePoint operator+(int distance) const noexcept
+            {
+                return {m_x + distance, m_y + distance};
+            }
+
+            CorePoint& operator+=(const CorePoint& other) noexcept
+            {
+                m_x += other.m_x;
+                m_y += other.m_y;
+
+                return *this;
+            }
+
+            CorePoint& operator+=(int distance) noexcept
+            {
+                m_x += distance;
+                m_y += distance;
+
+                return *this;
+            }
+
+            CorePoint operator-(const CorePoint& other) const noexcept
+            {
+                return {m_x - other.m_x, m_y - other.m_y};
+            }
+
+            CorePoint operator-(int distance) const noexcept
+            {
+                return {m_x - distance, m_y - distance};
+            }
+
+            CorePoint& operator-=(const CorePoint& other) noexcept
+            {
+                m_x -= other.m_x;
+                m_y -= other.m_y;
+
+                return *this;
+            }
+
+            CorePoint& operator-=(int distance) noexcept
+            {
+                m_x -= distance;
+                m_y -= distance;
+
+                return *this;
+            }
+
+            bool operator==(const CorePoint& other) const noexcept
+            {
+                return m_x == other.m_x && m_y == other.m_y;
+            }
+
+            bool operator>(const CorePoint& other) const noexcept
+            {
+                return m_x > other.m_x && m_y > other.m_y;
+            }
+
+            bool operator>=(const CorePoint& other) const noexcept
+            {
+                return this->operator>(other) || this->operator==(other);
+            }
+
+            bool operator<(const CorePoint& other) const noexcept
+            {
+                return !(this->operator>(other) || this->operator==(other));
+            }
+
+            bool operator<=(const CorePoint& other) const noexcept
+            {
+                return this->operator<(other) || this->operator==(other);
+            }
+
+            [[nodiscard]] constexpr bool horizontal_greater_than(int x) const noexcept
+            {
+                return m_x > x;
+            }
+
+            [[nodiscard]] constexpr bool horizontal_greater_equal(int x) const noexcept
+            {
+                return m_x >= x;
+            }
+
+            [[nodiscard]] constexpr bool vertical_greater_than(int y) const noexcept
+            {
+                return m_y > y;
+            }
+
+            [[nodiscard]] constexpr bool vertical_greater_equal(int y) const noexcept
+            {
+                return m_y >= y;
+            }
+
+            [[nodiscard]] constexpr bool greater_than(int x, int y) const noexcept
+            {
+                return horizontal_greater_than(x) && vertical_greater_than(y);
+            }
+
+            [[nodiscard]] constexpr bool greater_equal(int x, int y) const noexcept
+            {
+                return horizontal_greater_equal(x) && vertical_greater_equal(y);
+            }
+
+            [[nodiscard]] constexpr int horizontal_distance(const CorePoint& other) const noexcept
+            {
+                return other.m_x - m_x + 1;
+            }
+
+            [[nodiscard]] constexpr int vertical_distance(const CorePoint& other) const noexcept
+            {
+                return other.m_y - m_y + 1;
+            }
+
+            [[nodiscard]] constexpr int horizontal_distance(int x) const noexcept
+            {
+                return x - m_x + 1;
+            }
+
+            [[nodiscard]] constexpr int vertical_distance(int y) const noexcept
+            {
+                return y - m_y + 1;
+            }
+
+            [[nodiscard]] constexpr double get_distance(const CorePoint& other) const noexcept
+            {
+                return std::sqrt(std::pow(horizontal_distance(other), 2) + std::pow(vertical_distance(other), 2));
+            }
+
+            constexpr void reposition(int x, int y) noexcept
+            {
+                m_x = x;
+                m_y = y;
+            }
+
+            constexpr void horizontal_move(int x) noexcept
+            {
+                m_x += x;
+            }
+
+            constexpr void vertical_move(int y) noexcept
+            {
+                m_y += y;
+            }
+
+            constexpr void move_to(int x, int y) noexcept
+            {
+                horizontal_move(x);
+                vertical_move(y);
+            }
+
+            // clamp a point in the specified area (not allowed on the edge of the area)
+            constexpr void clamp_point_upper(int x, int y) noexcept
+            {
+                m_x = (m_x >= x) ? (x - 1) : m_x;
+                m_y = (m_y >= y) ? (y - 1) : m_y;
+            }
+
+            // clamp a point in the specified area (allowed on the edge of the area)
+            constexpr void clamp_point_lower(int x, int y) noexcept
+            {
+                m_x = (m_x < x) ? x : m_x;
+                m_y = (m_y < y) ? y : m_y;
+            }
+
+            // [x1, x2)
+            [[nodiscard]] constexpr bool horizontal_between(int x1, int x2) const noexcept
+            {
+                return m_x >= x1 && m_x < x2;
+            }
+
+            // [y1, y2)
+            [[nodiscard]] constexpr bool vertical_between(int y1, int y2) const noexcept
+            {
+                return m_y >= y1 && m_y < y2;
+            }
+
+            int m_x;
+            int m_y;
+        };
+
         class CoreRect {
         public:
-            explicit CoreRect() : m_left(-1), m_top(-1), m_right(-1), m_bottom(-1){};
+            constexpr explicit CoreRect() noexcept
+                : m_left_top_corner(-1, -1), m_right_bottom_corner(-1, -1) {};
 
-            CoreRect(int left, int top, int width, int height)
-                : m_left(left), m_top(top), m_right(left + width - 1), m_bottom(top + height - 1){};
+            constexpr CoreRect(int left, int top, int width, int height) noexcept
+                : m_left_top_corner(left, top), m_right_bottom_corner(left + width - 1, top + height - 1) {};
 
-            void set_rect(int left, int top, int width, int height) {
-                GalAssert(width > 0 && height > 0);
-                m_left = left;
-                m_top = top;
-                m_right = left + width - 1;
-                m_bottom = top + height - 1;
-            }
+            constexpr CoreRect(CorePoint left_top, CorePoint right_bottom) noexcept
+                : m_left_top_corner(left_top), m_right_bottom_corner(right_bottom) {};
 
-            void move_rect(int horizontal, int vertical)
+            void set_rect(int left, int top, int width, int height) noexcept
             {
-                m_left += horizontal;
-                m_top += vertical;
-                m_right += horizontal;
-                m_bottom += vertical;
+                GalAssert(width > 0 && height > 0);
+
+                m_left_top_corner.reposition(left, top);
+                m_right_bottom_corner.reposition(left + width - 1, top + height - 1);
             }
 
-            [[nodiscard]] bool is_in_rect(int x, int y) const {
-                return x >= m_left && x <= m_right && y >= m_top && y <= m_bottom;
+            void set_rect(const CorePoint& left_top, const CorePoint& right_bottom) noexcept
+            {
+                m_left_top_corner = left_top;
+                m_right_bottom_corner = right_bottom;
             }
 
-            [[nodiscard]] int distance_of_left(int x) const {
-                return x - m_left;
+            // negative left value means expand forward left, positive right value means expand forward right
+            void horizontal_expand(int left, int right) noexcept
+            {
+                m_left_top_corner.horizontal_move(left);
+                m_right_bottom_corner.horizontal_move(right);
             }
 
-            [[nodiscard]] int distance_of_top(int y) const {
-                return y - m_top;
+            // negative top value means expand forward top, positive bottom value means expand forward bottom
+            void vertical_expand(int top, int bottom) noexcept
+            {
+                m_left_top_corner.vertical_move(top);
+                m_right_bottom_corner.vertical_move(bottom);
             }
 
-            bool operator==(const CoreRect &rect) const {
-                return (m_left == rect.m_left) && (m_top == rect.m_top) && (m_right == rect.m_right) && (m_bottom == rect.m_bottom);
+            void move_rect(int horizontal, int vertical) noexcept
+            {
+                m_left_top_corner.move_to(horizontal, vertical);
+                m_right_bottom_corner.move_to(horizontal, vertical);
             }
 
-            [[nodiscard]] int get_width() const {
-                return m_right - m_left + 1;
+            [[nodiscard]] bool is_in_rect(int x, int y) const noexcept
+            {
+                return !m_left_top_corner.greater_than(x, y) && m_right_bottom_corner.greater_equal(x, y);
             }
 
-            [[nodiscard]] int get_height() const {
-                return m_bottom - m_top + 1;
+            [[nodiscard]] bool is_in_rect(const CorePoint& point) const noexcept
+            {
+                return point >= m_left_top_corner && point <= m_right_bottom_corner;
             }
 
-            int m_left;
-            int m_top;
-            int m_right;
-            int m_bottom;
+            [[nodiscard]] bool is_in_rect(const CoreRect& rect) const noexcept
+            {
+                return is_in_rect(rect.m_left_top_corner) && is_in_rect(rect.m_right_bottom_corner);
+            }
+
+            [[nodiscard]] int distance_of_left(int x) const noexcept
+            {
+                return m_left_top_corner.horizontal_distance(x);
+            }
+
+            [[nodiscard]] int distance_of_top(int y) const noexcept
+            {
+                return m_left_top_corner.vertical_distance(y);
+            }
+
+            bool operator==(const CoreRect &other) const noexcept
+            {
+                return m_left_top_corner == other.m_left_top_corner && m_right_bottom_corner == other.m_right_bottom_corner;
+            }
+
+            [[nodiscard]] int get_width() const noexcept{
+                return m_right_bottom_corner.horizontal_distance(m_left_top_corner);
+            }
+
+            [[nodiscard]] int get_height() const noexcept{
+                return m_right_bottom_corner.vertical_distance(m_left_top_corner);
+            }
+
+            CorePoint m_left_top_corner;
+            CorePoint m_right_bottom_corner;
         };
 
     }
@@ -315,35 +541,35 @@ namespace Gal {
     constexpr ColorType DefaultColorMask = 0xFF080408;
 
     namespace utility{
-        constexpr ColorType build_argb(ColorType alpha, ColorType red, ColorType green, ColorType blue) {
+        constexpr ColorType build_argb(ColorType alpha, ColorType red, ColorType green, ColorType blue) noexcept {
             return (alpha << 24) | (red << 16) | (green << 8) | (blue << 0);
         }
 
-        constexpr ColorType build_rgb(ColorType red, ColorType green, ColorType blue) {
+        constexpr ColorType build_rgb(ColorType red, ColorType green, ColorType blue) noexcept {
             return (red << 16) | (green << 8) | (blue << 0);
         }
 
-        constexpr ColorType get_alpha_from_argb(ColorType argb) {
+        constexpr ColorType get_alpha_from_argb(ColorType argb) noexcept {
             return (argb >> 24) & 0xFF;
         }
 
-        constexpr ColorType get_red_from_argb(ColorType argb) {
+        constexpr ColorType get_red_from_argb(ColorType argb) noexcept {
             return (argb >> 16) & 0xFF;
         }
 
-        constexpr ColorType get_green_from_argb(ColorType argb) {
+        constexpr ColorType get_green_from_argb(ColorType argb) noexcept {
             return (argb >> 8) & 0xFF;
         }
 
-        constexpr ColorType get_blue_from_argb(ColorType argb) {
+        constexpr ColorType get_blue_from_argb(ColorType argb) noexcept {
             return (argb >> 0) & 0xFF;
         }
 
-        constexpr ColorType rgb_convert_32_to_16(ColorType rgb) {
+        constexpr ColorType rgb_convert_32_to_16(ColorType rgb) noexcept {
             return ((rgb & 0xFF) >> 3) | ((rgb & 0xFC00) >> 5) | ((rgb & 0xF80000) >> 8);
         }
 
-        constexpr ColorType rgb_convert_16_to_32(ColorType rgb) {
+        constexpr ColorType rgb_convert_16_to_32(ColorType rgb) noexcept {
             return (0xFF << 24) | ((rgb & 0x1F) << 3) | ((rgb & 0x7E0) << 5) | ((rgb & 0xF800) << 8);
         }
     }
@@ -365,11 +591,15 @@ namespace Gal {
             enum class FONT_TYPE {
                 NONE = 0,
                 DEFAULT,
-                CUSTOM,
+                CUSTOM0,
+                CUSTOM1,
+                CUSTOM2,
                 MAX
             };
             enum class BITMAP_TYPE {
-                CUSTOM = 0,
+                CUSTOM0 = 0,
+                CUSTOM1 = 0,
+                CUSTOM2 = 0,
                 BITMAP_MAX
             };
             enum class COLOR_TYPE {
@@ -378,7 +608,9 @@ namespace Gal {
                 WND_PUSHED,
                 WND_FOCUS,
                 WND_BORDER,
-                CUSTOM,
+                CUSTOM0,
+                CUSTOM1,
+                CUSTOM2,
                 MAX
             };
 
@@ -386,7 +618,6 @@ namespace Gal {
                 //support 16 bits only
                 B16ByteType width;
                 B16ByteType height;
-                B16ByteType color_bits;
                 const B16ByteType *pixel_color_array;
             };
 
@@ -463,22 +694,22 @@ namespace Gal {
 
         public:
             enum class Z_ORDER_LEVEL {
-                LOWEST,
-                MIDDLE,
-                HIGHEST,
-                MAX
+                LOWEST = 0,
+                MIDDLE = 1,
+                HIGHEST = 2,
+                MAX = 3
             };
 
             template<COLOR_BYTE_TYPE Bytes>
             using ColorByteType = std::conditional_t<Bytes == COLOR_BYTE_TYPE::BITS_16, B16ByteType, B32ByteType>;
-
             using B16ColorByteType = ColorByteType<COLOR_BYTE_TYPE::BITS_16>;
             using B32ColorByteType = ColorByteType<COLOR_BYTE_TYPE::BITS_32>;
+
             using FramebufferType = std::variant<B16ColorByteType *, B32ColorByteType *, std::nullptr_t>;
 
             struct external_gfx_operator {
-                std::function<void(int, int, ColorType)> draw_pixel;
-                std::function<void(int, int, int, int, ColorType)> fill_rect;
+                std::function<void(CorePoint, ColorType)> draw_pixel;
+                std::function<void(CorePoint, CorePoint, ColorType)> fill_rect;
             };
 
             class CoreDisplay {
@@ -520,18 +751,18 @@ namespace Gal {
                     return m_surface_group[m_surface_index++];
                 }
 
+                bool swipe_surface(CoreSurface* surface1, CoreSurface* surface2, CorePoint left_top, CorePoint right_bottom, int offset);
+
                 bool swipe_surface(CoreSurface* surface1, CoreSurface* surface2, const CoreRect& rect, int offset)
                 {
-                    return swipe_surface(surface1, surface2, rect.m_left, rect.m_right, rect.m_top, rect.m_bottom, offset);
+                    return swipe_surface(surface1, surface2, rect.m_left_top_corner, rect.m_right_bottom_corner, offset);
                 }
 
-                bool swipe_surface(CoreSurface *surface1, CoreSurface *surface2, int x0, int x1, int y0, int y1, int offset);
-
-                [[nodiscard]] int get_width() const {
+                [[nodiscard]] int get_width() const noexcept {
                     return m_width;
                 }
 
-                [[nodiscard]] int get_height() const {
+                [[nodiscard]] int get_height() const noexcept {
                     return m_height;
                 }
 
@@ -612,25 +843,24 @@ namespace Gal {
                         : set_surface(max_z_order, overlapped_rect, color_bytes);
             }
 
-            [[nodiscard]] unsigned int get_width() const {
+            [[nodiscard]] int get_width() const noexcept {
                 return m_width;
             }
 
-            [[nodiscard]] unsigned int get_height() const {
+            [[nodiscard]] int get_height() const noexcept {
                 return m_height;
             }
 
-            ColorType get_pixel(int x, int y, Z_ORDER_LEVEL z_order) {
-                if (x >= m_width || y >= m_height || x < 0 || y < 0 || z_order >= Z_ORDER_LEVEL::MAX) {
+            [[nodiscard]] ColorType get_pixel(const CorePoint& point, Z_ORDER_LEVEL z_order) const {
+                if(!point.horizontal_between(0, m_width) || !point.vertical_between(0, m_height) || z_order >= Z_ORDER_LEVEL::MAX)
+                {
                     GalAssert(false);
                     return static_cast<ColorType>(-1);
                 }
 
-                auto _z_order = static_cast<size_t>(z_order);
-                auto index = y * m_width + x;
-                FramebufferType buffers[3] = {m_layers[_z_order].framebuffer, m_framebuffer, m_physical_framebuffer};
+                auto index = point.m_y * m_width + point.m_x;
 
-                for (auto &buffer : buffers) {
+                for (auto &buffer : {m_layers[static_cast<size_t>(z_order)].framebuffer, m_framebuffer, m_physical_framebuffer}) {
                     if (!std::holds_alternative<std::nullptr_t>(buffer)) {
                         return get_rgb_from_buffer(buffer, index);
                     }
@@ -639,8 +869,8 @@ namespace Gal {
                 return static_cast<ColorType>(-1);
             }
 
-            virtual void draw_pixel(int x, int y, ColorType rgb, Z_ORDER_LEVEL z_order) {
-                if (x >= m_width || y >= m_height || x < 0 || y < 0) {
+            virtual void draw_pixel(const CorePoint& point, ColorType rgb, Z_ORDER_LEVEL z_order) {
+                if (!point.horizontal_between(0, m_width) || !point.vertical_between(0, m_height)) {
                     return;
                 }
                 if (z_order > m_max_z_order) {
@@ -648,77 +878,78 @@ namespace Gal {
                     return;
                 }
                 if (z_order == m_max_z_order) {
-                    return draw_pixel_on_framebuffer(x, y, rgb);
+                    return draw_pixel_on_framebuffer(point, rgb);
                 }
 
                 if (z_order > m_top_z_order) {
                     m_top_z_order = z_order;
                 }
-                if (auto layer = m_layers[static_cast<size_t>(z_order)]; layer.rect.is_in_rect(x, y)) {
+                if (auto layer = m_layers[static_cast<size_t>(z_order)]; layer.rect.is_in_rect(point)) {
                     auto layer_rect = layer.rect;
                     auto buffer = layer.framebuffer;
-                    auto index = layer_rect.distance_of_left(x) + layer_rect.distance_of_top(y) * layer_rect.get_width();
+                    auto index = layer_rect.distance_of_left(point.m_x) + layer_rect.distance_of_top(point.m_y) * layer_rect.get_width();
 
                     write_rgb_to_buffer(buffer, index, rgb);
                 }
 
                 if (z_order == m_top_z_order) {
-                    return draw_pixel_on_framebuffer(x, y, rgb);
+                    return draw_pixel_on_framebuffer(point, rgb);
                 }
 
                 bool be_overlapped = false;
                 for (auto tmp_z_order = static_cast<size_t>(Z_ORDER_LEVEL::MAX) - 1; tmp_z_order > static_cast<size_t>(z_order); --tmp_z_order) {
-                    if (m_layers[tmp_z_order].rect.is_in_rect(x, y)) {
+                    if (m_layers[tmp_z_order].rect.is_in_rect(point)) {
                         be_overlapped = true;
                         break;
                     }
                 }
                 if (!be_overlapped) {
-                    draw_pixel_on_framebuffer(x, y, rgb);
+                    draw_pixel_on_framebuffer(point, rgb);
                 }
             }
 
-            virtual void fill_rect(int x0, int y0, int x1, int y1, ColorType rgb, Z_ORDER_LEVEL z_order) {
-                x0 = utility::max(x0, 0);
-                y0 = utility::max(y0, 0);
-                x1 = utility::min(x1, m_width - 1);
-                y1 = utility::min(y1, (m_height - 1));
+            virtual void fill_rect(CorePoint left_top, CorePoint right_bottom, ColorType rgb, Z_ORDER_LEVEL z_order) {
+                left_top.clamp_point_lower(0, 0);
+                right_bottom.clamp_point_upper(m_width, m_height);
 
                 if (z_order == m_max_z_order) {
-                    return fill_rect_on_framebuffer(x0, y0, x1, y1, rgb);
+                    return fill_rect_on_framebuffer(left_top, right_bottom, rgb);
                 }
                 if (z_order == m_top_z_order) {
                     auto layer = m_layers[static_cast<size_t>(z_order)];
                     auto layer_rect = layer.rect;
                     auto buffer = layer.framebuffer;
-                    for (auto y = y0; y <= y1; ++y) {
-                        for (auto x = x0; x <= x1; ++x) {
+                    for (auto y = left_top.m_y; y <= right_bottom.m_y; ++y) {
+                        for (auto x = left_top.m_x; x <= right_bottom.m_x; ++x) {
                             if (layer_rect.is_in_rect(x, y)) {
                                 auto index = layer_rect.distance_of_left(x) + layer_rect.distance_of_top(y) * layer_rect.get_width();
                                 write_rgb_to_buffer(buffer, index, rgb);
                             }
                         }
                     }
-                    return fill_rect_on_framebuffer(x0, y0, x1, y1, rgb);
+                    return fill_rect_on_framebuffer(left_top, right_bottom, rgb);
                 }
-                for (; y0 <= y1; ++y0) {
-                    draw_horizontal_line(x0, x1, y0, rgb, z_order);
+                for (auto y = left_top.m_y; y <= right_bottom.m_y; ++y) {
+                    draw_horizontal_line(left_top.m_x, right_bottom.m_x, y, rgb, z_order);
                 }
             }
 
             void draw_horizontal_line(int x0, int x1, int y, ColorType rgb, Z_ORDER_LEVEL z_order) {
                 for (; x0 <= x1; ++x0) {
-                    draw_pixel(x0, y, rgb, z_order);
+                    draw_pixel({x0, y}, rgb, z_order);
                 }
             }
 
             void draw_vertical_line(int x, int y0, int y1, ColorType rgb, Z_ORDER_LEVEL z_order) {
                 for (; y0 <= y1; ++y0) {
-                    draw_pixel(x, y0, rgb, z_order);
+                    draw_pixel({x, y0}, rgb, z_order);
                 }
             }
 
-            void draw_line(int x0, int y0, int x1, int y1, ColorType rgb, Z_ORDER_LEVEL z_order) {
+            void draw_line(CorePoint left_top, CorePoint right_bottom, ColorType rgb, Z_ORDER_LEVEL z_order) {
+                auto [x0, y0] = left_top;
+                auto [x1, y1] = right_bottom;
+
                 auto dx = utility::abs(x1 - x0);
                 auto dy = utility::abs(y1 - y0);
                 int x;
@@ -736,7 +967,7 @@ namespace Gal {
                 if (dx > dy) {
                     auto e = dy - dx / 2;
                     for (; x0 <= x1; ++x0, e += dy) {
-                        draw_pixel(x0, y0, rgb, z_order);
+                        draw_pixel({x0, y0}, rgb, z_order);
                         if (e > 0) {
                             e -= dx;
                             (y > y1) ? --y0 : ++y0;
@@ -745,7 +976,7 @@ namespace Gal {
                 } else {
                     auto e = dx - dy / 2;
                     for (; y0 <= y1; ++y0, e += dx) {
-                        draw_pixel(x0, y0, rgb, z_order);
+                        draw_pixel({x0, y0}, rgb, z_order);
                         if (e > 0) {
                             e -= dy;
                             (x > x1) ? --x0 : ++x0;
@@ -754,7 +985,9 @@ namespace Gal {
                 }
             }
 
-            void draw_rect(int x0, int y0, int x1, int y1, ColorType rgb, Z_ORDER_LEVEL z_order, unsigned int scale = 1) {
+            void draw_rect(CorePoint left_top, CorePoint right_bottom, ColorType rgb, Z_ORDER_LEVEL z_order, unsigned int scale = 1) {
+                auto [x0, y0] = left_top;
+                auto [x1, y1] = right_bottom;
                 for (auto offset = 0; offset < scale; ++offset) {
                     draw_horizontal_line(x0 + offset, x1 - offset, y0 + offset, rgb, z_order);
                     draw_horizontal_line(x0 + offset, x1 - offset, y1 - offset, rgb, z_order);
@@ -764,20 +997,22 @@ namespace Gal {
             }
 
             void draw_rect(CoreRect rect, ColorType rgb, Z_ORDER_LEVEL z_order, unsigned int scale) {
-                draw_rect(rect.m_left, rect.m_top, rect.m_right, rect.m_bottom, rgb, z_order, scale);
+                draw_rect(rect.m_left_top_corner, rect.m_right_bottom_corner, rgb, z_order, scale);
             }
 
             void fill_rect(CoreRect rect, ColorType rgb, Z_ORDER_LEVEL z_order) {
-                fill_rect(rect.m_left, rect.m_top, rect.m_right, rect.m_bottom, rgb, z_order);
+                fill_rect(rect.m_left_top_corner, rect.m_right_bottom_corner, rgb, z_order);
             }
 
             bool flush_screen(const CoreRect& rect)
             {
-                return flush_screen(rect.m_left, rect.m_top, rect.m_right, rect.m_bottom);
+                return flush_screen(rect.m_left_top_corner, rect.m_right_bottom_corner);
             }
 
-            bool flush_screen(int left, int top, int right, int bottom) {
-                if (left < 0 || left >= m_width || right < 0 || right >= m_width || top < 0 || top >= m_height || bottom < 0 || bottom >= m_height) {
+            bool flush_screen(CorePoint left_top, CorePoint right_bottom) {
+                if(!left_top.horizontal_between(0, m_width) || !right_bottom.horizontal_between(0, m_width) ||
+                    !left_top.vertical_between(0, m_height) || !right_bottom.vertical_between(0, m_height))
+                {
                     GalAssert(false);
                 }
                 if (!m_is_active || std::holds_alternative<std::nullptr_t>(m_physical_framebuffer) || std::holds_alternative<std::nullptr_t>(m_framebuffer)) {
@@ -786,10 +1021,8 @@ namespace Gal {
 
                 auto display_width = m_display->get_width();
                 auto display_height = m_display->get_height();
-                left = (left >= display_width) ? (display_width - 1) : left;
-                right = (right >= display_width) ? (display_width - 1) : right;
-                top = (top >= display_height) ? (display_height - 1) : top;
-                bottom = (bottom >= display_height) ? (display_height - 1) : bottom;
+                left_top.clamp_point_upper(display_width, display_height);
+                right_bottom.clamp_point_upper(display_width, display_height);
 
                 char *source = nullptr;
                 char *dest = nullptr;
@@ -806,11 +1039,11 @@ namespace Gal {
                     dest = reinterpret_cast<char *>(std::get<B32ColorByteType *>(m_physical_framebuffer));
                 }
 
-                for (auto y = top; y < bottom; ++y) {
-                    source += (y * m_width + left) * bytes;
-                    dest += (y * display_width + left) * bytes;
+                for (auto y = left_top.m_y; y < right_bottom.m_y; ++y) {
+                    source += (y * m_width + left_top.m_x) * bytes;
+                    dest += (y * display_width + left_top.m_x) * bytes;
 
-                    std::memcpy(dest, source, (right - left) * bytes);
+                    std::memcpy(dest, source, left_top.horizontal_distance(right_bottom) * bytes);
                 }
                 ++*m_physical_write_index;
                 return true;
@@ -828,33 +1061,34 @@ namespace Gal {
                 return m_display;
             }
 
-            void show_layer(CoreRect &rect, CoreSurface::Z_ORDER_LEVEL z_order) {
+            void show_layer(const CoreRect &rect, CoreSurface::Z_ORDER_LEVEL z_order) {
                 GalAssert(z_order >= LOWEST && z_order < MAX);
                 auto layer = m_layers[static_cast<size_t>(z_order)];
                 auto layer_rect = layer.rect;
-                GalAssert(rect.m_left >= layer_rect.m_left && rect.m_right <= layer_rect.m_right &&
-                          rect.m_top >= layer_rect.m_top && rect.m_bottom <= layer_rect.m_bottom);
+                GalAssert(layer_rect.is_in_rect(rect));
                 auto buffer = layer.framebuffer;
                 auto width = layer_rect.get_width();
-                for (auto y = rect.m_top; y <= rect.m_bottom; ++y) {
-                    for (auto x = rect.m_left; x <= rect.m_right; ++x) {
+
+                auto [left_top, right_bottom] = rect;
+                for (auto y = left_top.m_y; y <= right_bottom.m_y; ++y) {
+                    for (auto x = left_top.m_x; x <= right_bottom.m_x; ++x) {
                         auto index = layer_rect.distance_of_left(x) + layer_rect.distance_of_top(y) * width;
-                        draw_pixel_on_framebuffer(x, y, get_rgb_from_buffer(buffer, index));
+                        draw_pixel_on_framebuffer({x, y}, get_rgb_from_buffer(buffer, index));
                     }
                 }
             }
 
         protected:
-            virtual void draw_pixel_on_framebuffer(int x, int y, ColorType rgb) {
+            virtual void draw_pixel_on_framebuffer(CorePoint point, ColorType rgb) {
                 if (!std::holds_alternative<std::nullptr_t>(m_framebuffer)) {
-                    write_rgb_to_buffer(m_framebuffer, y * m_width + x, rgb);
+                    write_rgb_to_buffer(m_framebuffer, point.m_y * m_width + point.m_x, rgb);
                 }
-                if (m_is_active && (x < m_display->get_width()) && (y < m_display->get_height())) {
-                    write_rgb_to_buffer(m_physical_framebuffer, y * m_display->get_width() + x, rgb);
+                if (m_is_active && (point.m_x < m_display->get_width()) && (point.m_y < m_display->get_height())) {
+                    write_rgb_to_buffer(m_physical_framebuffer, point.m_y * m_display->get_width() + point.m_x, rgb);
                 }
                 ++*m_physical_write_index;
             }
-            virtual void fill_rect_on_framebuffer(int x0, int y0, int x1, int y1, ColorType rgb) {
+            virtual void fill_rect_on_framebuffer(CorePoint left_top, CorePoint right_bottom, ColorType rgb) {
                 auto display_width = m_display->get_width();
                 auto display_height = m_display->get_height();
 
@@ -882,6 +1116,8 @@ namespace Gal {
                     physical_framebuffer = std::get<B32ColorByteType *>(m_physical_framebuffer);
                 }
 
+                auto [x0, y0] = left_top;
+                auto [x1, y1] = right_bottom;
                 for (; y0 <= y1; ++y0) {
                     auto framebuffer_index = y0 * m_width + x0;
                     auto physical_framebuffer_index = y0 * display_width + x0;
@@ -948,8 +1184,8 @@ namespace Gal {
                 }
             }
 
-            unsigned int m_width;
-            unsigned int m_height;
+            int m_width;
+            int m_height;
             FramebufferType m_framebuffer;
             std::array<CoreLayer, static_cast<size_t>(Z_ORDER_LEVEL::MAX)> m_layers;
             bool m_is_active;
@@ -997,24 +1233,27 @@ namespace Gal {
             }
 
         protected:
-            void draw_pixel_on_framebuffer(int x, int y, ColorType rgb) override {
+            void draw_pixel_on_framebuffer(CorePoint point, ColorType rgb) override {
                 if (m_gfx_operator && m_gfx_operator->draw_pixel && m_is_active) {
-                    m_gfx_operator->draw_pixel(x, y, rgb);
+                    m_gfx_operator->draw_pixel(point, rgb);
                 }
                 if (std::holds_alternative<std::nullptr_t>(m_framebuffer)) { return; }
-                write_rgb_to_buffer(m_framebuffer, y * m_width + x, rgb);
+                write_rgb_to_buffer(m_framebuffer, point.m_y * m_width + point.m_x, rgb);
             }
 
-            void fill_rect_on_framebuffer(int x0, int y0, int x1, int y1, ColorType rgb) override {
+            void fill_rect_on_framebuffer(CorePoint left_top, CorePoint right_bottom, ColorType rgb) override {
                 if (!m_gfx_operator) { return; }
 
                 if (auto &filler = m_gfx_operator->fill_rect; filler) {
-                    return m_gfx_operator->fill_rect(x0, y0, x1, y1, rgb);
+                    return m_gfx_operator->fill_rect(left_top, right_bottom, rgb);
                 }
+
+                auto [x0, y0] = left_top;
+                auto [x1, y1] = right_bottom;
                 if (auto &drawer = m_gfx_operator->draw_pixel; drawer && m_is_active) {
                     for (auto y = y0; y <= y1; ++y) {
                         for (auto x = x0; x <= x1; ++x) {
-                            drawer(x, y, rgb);
+                            drawer({x, y}, rgb);
                         }
                     }
                 }
@@ -1101,17 +1340,22 @@ namespace Gal {
             m_surface_group[0]->attach_display(this);
         }
 
-        bool CoreSurface::CoreDisplay::swipe_surface(CoreSurface *surface1, CoreSurface *surface2, int x0, int x1, int y0, int y1, int offset) {
+        bool CoreSurface::CoreDisplay::swipe_surface(CoreSurface *surface1, CoreSurface *surface2, CorePoint left_top, CorePoint right_bottom, int offset)
+        {
             auto surface_width = surface1->get_width();
             auto surface_height = surface1->get_height();
-            if (
-                    offset < 0 || offset > surface_width || x0 < 0 || x0 >= surface_width || x1 < 0 || x1 >= surface_width || y0 < 0 || y0 >= surface_height || y1 < 0 || y1 >= surface_height) {
+            if(offset < 0 || offset > surface_width ||
+                !left_top.horizontal_between(0, surface_width) || !left_top.vertical_between(0, surface_height) ||
+                !right_bottom.horizontal_between(0, surface_width) || !right_bottom.vertical_between(0, surface_height)
+                )
+            {
                 GalAssert(false);
                 return false;
             }
 
-            auto width = (x1 - x0 + 1);
-            if (width < 0 || width > surface_width || width < offset) {
+            auto width = left_top.horizontal_distance(right_bottom);
+            if(width < 0 || width > surface_width || width < offset)
+            {
                 GalAssert(false);
                 return false;
             }
@@ -1121,13 +1365,15 @@ namespace Gal {
             using UNDERLYING_BYTE_TYPE = std::underlying_type_t<COLOR_BYTE_TYPE>;
             UNDERLYING_BYTE_TYPE bytes =
                     std::holds_alternative<B16ColorByteType *>(surface1->m_framebuffer)
-                            ? static_cast<UNDERLYING_BYTE_TYPE>(COLOR_BYTE_TYPE::BITS_16)
-                            : static_cast<UNDERLYING_BYTE_TYPE>(COLOR_BYTE_TYPE::BITS_32);
+                    ? static_cast<UNDERLYING_BYTE_TYPE>(COLOR_BYTE_TYPE::BITS_16)
+                    : static_cast<UNDERLYING_BYTE_TYPE>(COLOR_BYTE_TYPE::BITS_32);
 
-            x0 = (x0 >= m_width) ? (m_width - 1) : x0;
-            x1 = (x1 >= m_width) ? (m_width - 1) : x1;
-            y0 = (y0 >= m_height) ? (m_height - 1) : y0;
-            y1 = (y1 >= m_height) ? (m_height - 1) : y1;
+            left_top.clamp_point_upper(m_width, m_height);
+            right_bottom.clamp_point_upper(m_width, m_height);
+
+            auto x0 = left_top.m_x;
+            auto x1 = right_bottom.m_x;
+
             if (!std::holds_alternative<std::nullptr_t>(m_physical_framebuffer)) {
                 char *left_source = nullptr;
                 char *right_source = nullptr;
@@ -1145,7 +1391,7 @@ namespace Gal {
                     dest = reinterpret_cast<char *>(std::get<B32ColorByteType *>(m_physical_framebuffer));
                 }
 
-                for (int y = y0; y <= y1; ++y) {
+                for (auto y = left_top.m_y; y <= right_bottom.m_y; ++y) {
                     //Left surface
                     auto left_source_index = (y * surface1->get_width() + x0 + offset) * bytes;
                     auto left_dest_index = (y * m_width + x0) * bytes;
@@ -1159,14 +1405,14 @@ namespace Gal {
             } else {
                 auto draw_pixel = dynamic_cast<CoreSurfaceNoFramebuffer *>(surface1)->get_gfx_operator()->draw_pixel;
 
-                for (auto y = y0; y <= y1; ++y) {
+                for (auto y = left_top.m_y; y <= right_bottom.m_y; ++y) {
                     //Left surface
                     for (auto x = x0; x <= (x1 - offset); ++x) {
-                        draw_pixel(x, y, get_rgb_from_buffer(surface1->m_framebuffer, y * m_width + x + offset));
+                        draw_pixel({x, y}, get_rgb_from_buffer(surface1->m_framebuffer, y * m_width + x + offset));
                     }
                     //Right surface
                     for (auto x = x1 - offset; x <= x1; ++x) {
-                        draw_pixel(x, y, get_rgb_from_buffer(surface2->m_framebuffer, y * m_width + x + offset - x1 + x0));
+                        draw_pixel({x, y}, get_rgb_from_buffer(surface2->m_framebuffer, y * m_width + x + offset - x1 + x0));
                     }
                 }
             }
@@ -1192,7 +1438,7 @@ namespace Gal {
                     CoreSurface *surface,
                     CoreSurface::Z_ORDER_LEVEL z_order,
                     const char *str,
-                    int x, int y,
+                    CorePoint point,
                     const CoreTheme::font_info *font,
                     ColorType font_color,
                     ColorType background_color,
@@ -1203,7 +1449,8 @@ namespace Gal {
                 while (*str) {
                     unsigned int code;
                     str += get_utf8_code(str, code);
-                    offset += draw_single_char(surface, z_order, code, x + offset, y, font, font_color, background_color);
+                    point.horizontal_move(offset);
+                    offset += draw_single_char(surface, z_order, code, point, font, font_color, background_color);
                 }
             }
 
@@ -1218,10 +1465,10 @@ namespace Gal {
                     ALIGN_TYPE align_type = ALIGN_TYPE::HORIZONTAL_LEFT) {
                 if (str == nullptr) { return; }
 
-                int x;
-                int y;
-                get_string_position(str, font, rect, align_type, x, y);
-                draw_string(surface, z_order, str, rect.m_left + x, rect.m_top + y, font, font_color, background_color, align_type);
+                auto [x, y] = get_string_position(str, font, rect, align_type);
+                auto point = rect.m_left_top_corner;
+                point.move_to(x, y);
+                draw_string(surface, z_order, str, point, font, font_color, background_color, align_type);
             }
 
             static void draw_value(
@@ -1229,14 +1476,14 @@ namespace Gal {
                     CoreSurface::Z_ORDER_LEVEL z_order,
                     int value,
                     int dot_position,
-                    int x, int y,
+                    CorePoint point,
                     const CoreTheme::font_info *font,
                     ColorType font_color,
                     ColorType background_color,
                     ALIGN_TYPE align_type = ALIGN_TYPE::HORIZONTAL_LEFT) {
                 char buffer[WordBufferLength];
                 value_to_string(value, dot_position, buffer, WordBufferLength);
-                draw_string(surface, z_order, buffer, x, y, font, font_color, background_color, align_type);
+                draw_string(surface, z_order, buffer, point, font, font_color, background_color, align_type);
             }
 
             static void draw_value_in_rect(
@@ -1275,11 +1522,9 @@ namespace Gal {
                 }
             }
 
-            static bool get_str_size(const char *str, const CoreTheme::font_info *font, int &width, int &height) {
+            static std::pair<int, int> get_str_size(const char *str, const CoreTheme::font_info *font) {
                 if (str == nullptr || font == nullptr) {
-                    width = 0;
-                    height = 0;
-                    return false;
+                    return std::make_pair(0, 0);
                 }
                 auto lattice_width = 0;
                 while (*str) {
@@ -1288,9 +1533,8 @@ namespace Gal {
                     auto lattice = get_lattice(font, code);
                     lattice_width += lattice ? lattice->width : font->height;
                 }
-                width = lattice_width;
-                height = font->height;
-                return true;
+
+                return std::make_pair(lattice_width, font->height);
             }
 
         private:
@@ -1298,7 +1542,7 @@ namespace Gal {
                     CoreSurface *surface,
                     CoreSurface::Z_ORDER_LEVEL z_order,
                     unsigned int utf8_code,
-                    int x, int y,
+                    CorePoint point,
                     const CoreTheme::font_info *font,
                     ColorType font_color,
                     ColorType background_color) {
@@ -1306,7 +1550,7 @@ namespace Gal {
                 if (font) {
                     const auto lattice = get_lattice(font, utf8_code);
                     if (lattice) {
-                        draw_lattice(surface, z_order, x, y, lattice->width, font->height, lattice->pixel_gray_array, font_color, background_color);
+                        draw_lattice(surface, z_order, point, lattice->width, font->height, lattice->pixel_gray_array, font_color, background_color);
                         return lattice->width;
                     }
                 } else {
@@ -1314,14 +1558,15 @@ namespace Gal {
                 }
                 //lattice/font not found, draw "X"
                 const int length = 16;
+                auto [x, y] = point;
                 for (auto _y = 0; _y < length; ++_y) {
                     for (auto _x = 0; _x < length; ++_x) {
                         auto diff = (_x - _y);
                         int sum = (_x + _y);
                         if (utility::abs(diff) <= 1 || utility::abs(sum - length) <= 1) {
-                            surface->draw_pixel(x + _x, y + _y, error_color, z_order);
+                            surface->draw_pixel({x + _x, y + _y}, error_color, z_order);
                         } else {
-                            surface->draw_pixel(x + _x, y + _y, 0, z_order);
+                            surface->draw_pixel({x + _x, y + _y}, 0, z_order);
                         }
                     }
                 }
@@ -1332,7 +1577,7 @@ namespace Gal {
             static void draw_lattice(
                     CoreSurface *surface,
                     CoreSurface::Z_ORDER_LEVEL z_order,
-                    int x, int y,
+                    CorePoint point,
                     int width, int height,
                     const unsigned char *data,
                     ColorType font_color,
@@ -1353,16 +1598,17 @@ namespace Gal {
                     rgb = utility::build_rgb(red, green, blue);
                 };
 
+                auto [x, y] = point;
                 load_new_block();
                 for (auto _y = 0; _y < height; ++_y) {
                     for (auto _x = 0; _x < width; ++_x) {
                         GalAssert(block_count);
                         if (block_value == 0x00) {
                             if (utility::get_alpha_from_argb(background_color)) {
-                                surface->draw_pixel(x + _x, y + _y, background_color, z_order);
+                                surface->draw_pixel({x + _x, y + _y}, background_color, z_order);
                             }
                         } else {
-                            surface->draw_pixel(x + _x, y + _y, rgb, z_order);
+                            surface->draw_pixel({x + _x, y + _y}, rgb, z_order);
                         }
                         if (--block_count == 0) {
                             //reload new block
@@ -1392,14 +1638,12 @@ namespace Gal {
                 return nullptr;
             }
 
-            static void get_string_position(const char *str, const CoreTheme::font_info *font, CoreRect rect, ALIGN_TYPE align_type, int &x, int &y) {
-                int x_size;
-                int y_size;
-                get_str_size(str, font, x_size, y_size);
+            static std::pair<int, int> get_string_position(const char *str, const CoreTheme::font_info *font, CoreRect rect, ALIGN_TYPE align_type) {
+                auto [x_size, y_size] = get_str_size(str, font);
                 auto width = rect.get_width();
                 auto height = rect.get_height();
-                x = 0;
-                y = 0;
+                auto x = 0;
+                auto y = 0;
 
                 switch (align_type & ALIGN_TYPE::HORIZONTAL_MASK) {
                     case ALIGN_TYPE::HORIZONTAL_CENTER:
@@ -1437,6 +1681,8 @@ namespace Gal {
                         GalAssert(false);
                         break;
                 }
+
+                return std::make_pair(x, y);
             }
 
             static int get_utf8_code(const char *str, unsigned int &output_utf8_code) {
@@ -1506,10 +1752,10 @@ namespace Gal {
                             if (lower_framebuffer_rect.is_in_rect(_x, _y)) {
                                 //show lower layer
                                 auto index = lower_framebuffer_rect.distance_of_top(_y) * lower_framebuffer_width + lower_framebuffer_rect.distance_of_left(_x);
-                                surface->draw_pixel(_x, _y, CoreSurface::get_rgb_from_buffer(layer.framebuffer, index), z_order);
+                                surface->draw_pixel({_x, _y}, CoreSurface::get_rgb_from_buffer(layer.framebuffer, index), z_order);
                             }
                         } else {
-                            surface->draw_pixel(_x, _y, utility::rgb_convert_16_to_32(rgb), z_order);
+                            surface->draw_pixel({_x, _y}, utility::rgb_convert_16_to_32(rgb), z_order);
                         }
                     }
                 }
@@ -1519,10 +1765,11 @@ namespace Gal {
                     CoreSurface *surface,
                     CoreSurface::Z_ORDER_LEVEL z_order,
                     const CoreTheme::bitmap_info *bitmap,
-                    int x, int y,
-                    int source_x, int source_y,
+                    CorePoint point,
+                    CorePoint source_point,
                     int width, int height,
                     ColorType mask_rgb = DefaultColorMask) {
+                auto [source_x, source_y] = source_point;
                 if (bitmap == nullptr || (source_x + width > bitmap->width) || (source_y + height > bitmap->height)) { return; }
 
                 GalAssert(z_order >= CoreSurface::Z_ORDER_LEVEL::MIDDLE);
@@ -1534,6 +1781,7 @@ namespace Gal {
                 auto mask_rgb_16 = utility::rgb_convert_32_to_16(mask_rgb);
                 auto data = bitmap->pixel_color_array;
 
+                auto [x, y] = point;
                 for (auto _y = y; _y < y + bitmap->height; ++_y) {
                     auto p = &data[(source_y + _y) * bitmap->width + source_x];
                     for (auto _x = x, offset = 0; _x < x + bitmap->width; ++_x, ++offset) {
@@ -1542,10 +1790,10 @@ namespace Gal {
                             if (lower_framebuffer_rect.is_in_rect(_x, _y)) {
                                 //show lower layer
                                 auto index = (y + lower_framebuffer_rect.distance_of_top(_y)) * lower_framebuffer_width + (x + lower_framebuffer_rect.distance_of_left(_x));
-                                surface->draw_pixel(_x, _y, CoreSurface::get_rgb_from_buffer(layer.framebuffer, index), z_order);
+                                surface->draw_pixel({_x, _y}, CoreSurface::get_rgb_from_buffer(layer.framebuffer, index), z_order);
                             }
                         } else {
-                            surface->draw_pixel(_x, _y, utility::rgb_convert_16_to_32(rgb), z_order);
+                            surface->draw_pixel({_x, _y}, utility::rgb_convert_16_to_32(rgb), z_order);
                         }
                     }
                 }
@@ -1604,8 +1852,7 @@ namespace Gal {
                 CoreWindow *window;//window instance
                 IdType resource_id;//ID
                 const char *str;   //caption
-                int x;  //position x
-                int y;  //position y
+                CorePoint point;//position x && y
                 int width;
                 int height;
                 window_tree *child_tree;//sub tree
@@ -1634,7 +1881,7 @@ namespace Gal {
                     CoreWindow *parent,
                     IdType resource_id,
                     const char *str,
-                    int x, int y,
+                    CorePoint point,
                     int width, int height,
                     window_tree *child_tree) {
                 if (resource_id == s_id_not_used) {
@@ -1654,6 +1901,7 @@ namespace Gal {
                     return CONNECT_STATE::INVALID_USER;
                 }
                 /* (cs.x = x * 1024 / 768) for 1027*768=>800*600 quickly*/
+                auto [x, y] = point;
                 m_window_rect.set_rect(x, y, width, height);
                 pre_create_window();
                 if (parent != nullptr) {
@@ -1816,7 +2064,8 @@ namespace Gal {
 
             [[nodiscard]] CoreWindow *get_next_sibling() const { return m_next_sibling; }
 
-            virtual void on_touch(int x, int y, TOUCH_ACTION action) {
+            virtual void on_touch(CorePoint point, TOUCH_ACTION action) {
+                auto [x, y] = point;
                 x = m_window_rect.distance_of_left(x);
                 y = m_window_rect.distance_of_top(y);
                 CoreWindow *priority_window = nullptr;
@@ -1830,14 +2079,14 @@ namespace Gal {
                     tmp_child = tmp_child->m_next_sibling;
                 }
                 if (priority_window) {
-                    return priority_window->on_touch(x, y, action);
+                    return priority_window->on_touch({x, y}, action);
                 }
                 auto child = m_top_child;
                 while (child) {
                     if (child->is_focus_window()) {
                         auto rect = child->get_window_rect();
                         if (rect.is_in_rect(x, y)) {
-                            return child->on_touch(x, y, action);
+                            return child->on_touch({x, y}, action);
                         }
                     }
                     child = child->m_next_sibling;
@@ -1926,16 +2175,14 @@ namespace Gal {
 
             [[nodiscard]] std::pair<int, int> window_to_screen() const {
                 auto parent = m_parent;
-                int x = m_window_rect.m_left;
-                int y = m_window_rect.m_top;
+                auto point = m_window_rect.m_left_top_corner;
                 while (parent != nullptr) {
                     auto rect = parent->get_window_rect();
-                    x += rect.m_left;
-                    y += rect.m_top;
+                    point += rect.m_left_top_corner;
                     parent = parent->m_parent;
                 }
 
-                return std::make_pair(x, y);
+                return std::make_pair(point.m_x, point.m_y);
             }
 
             int load_child_window(window_tree *child_tree) {
@@ -1949,7 +2196,7 @@ namespace Gal {
                         GalAssert(false);
                         return -1;
                     } else {
-                        curr->window->connect(this, curr->resource_id, curr->str, curr->x, curr->y, curr->width, curr->height, curr->child_tree);
+                        curr->window->connect(this, curr->resource_id, curr->str, curr->point, curr->width, curr->height, curr->child_tree);
                     }
                     ++curr;
                     ++sum;
@@ -2045,7 +2292,7 @@ namespace Gal {
                 m_font_color = CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_FONT);
             }
 
-            void on_touch(int x, int y, TOUCH_ACTION action) override {
+            void on_touch(CorePoint point, TOUCH_ACTION action) override {
                 if (action == CoreWindow::TOUCH_ACTION::DOWN) {
                     m_parent->set_child_focus(this);
                     m_state = CoreWindow::WINDOW_STATE::PUSHED;
@@ -2062,10 +2309,9 @@ namespace Gal {
             void on_navigate(NAVIGATION_KEY key) override {
                 switch (key) {
                     case CoreWindow::NAVIGATION_KEY::ENTER: {
-                        auto x = m_window_rect.m_left;
-                        auto y = m_window_rect.m_top;
-                        on_touch(x, y, CoreWindow::TOUCH_ACTION::DOWN);
-                        on_touch(x, y, CoreWindow::TOUCH_ACTION::UP);
+                        auto [x, y] = m_window_rect.m_left_top_corner;
+                        on_touch({x, y}, CoreWindow::TOUCH_ACTION::DOWN);
+                        on_touch({x, y}, CoreWindow::TOUCH_ACTION::UP);
                     }
                     case CoreWindow::NAVIGATION_KEY::FORWARD:
                     case CoreWindow::NAVIGATION_KEY::BACKWARD:
@@ -2162,10 +2408,12 @@ namespace Gal {
                 auto rect = get_screen_rect();
                 m_surface->fill_rect(rect, m_background_color, m_z_order);
                 if (m_str) {
+                    auto point = rect.m_left_top_corner;
+                    point.horizontal_move(35);
                     CoreWord::draw_string(
                             m_surface, m_z_order,
                             m_str,
-                            rect.m_left + 35, rect.m_top,
+                            point,
                             CoreTheme::get_font(CoreTheme::FONT_TYPE::DEFAULT),
                             utility::build_rgb(255, 255, 255),
                             utility::build_argb(0, 0, 0, 0),
@@ -2516,62 +2764,62 @@ namespace Gal {
         CoreWindow::window_tree CoreKeyboard::s_keyboard_tree[] = /* NOLINT */
         {
                 //Row 1
-                {&CoreKeyboard::s_key_q, 'Q', nullptr, utility::get_x_in_keyboard(0), utility::get_y_in_keyboard(0), KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_w, 'W', nullptr, utility::get_x_in_keyboard(1), utility::get_y_in_keyboard(0), KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_e, 'E', nullptr, utility::get_x_in_keyboard(2), utility::get_y_in_keyboard(0), KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_r, 'R', nullptr, utility::get_x_in_keyboard(3), utility::get_y_in_keyboard(0), KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_t, 'T', nullptr, utility::get_x_in_keyboard(4), utility::get_y_in_keyboard(0), KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_y, 'Y', nullptr, utility::get_x_in_keyboard(5), utility::get_y_in_keyboard(0), KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_u, 'U', nullptr, utility::get_x_in_keyboard(6), utility::get_y_in_keyboard(0), KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_i, 'I', nullptr, utility::get_x_in_keyboard(7), utility::get_y_in_keyboard(0), KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_o, 'O', nullptr, utility::get_x_in_keyboard(8), utility::get_y_in_keyboard(0), KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_p, 'P', nullptr, utility::get_x_in_keyboard(9), utility::get_y_in_keyboard(0), KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_q, 'Q', nullptr, {utility::get_x_in_keyboard(0), utility::get_y_in_keyboard(0)}, KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_w, 'W', nullptr, {utility::get_x_in_keyboard(1), utility::get_y_in_keyboard(0)}, KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_e, 'E', nullptr, {utility::get_x_in_keyboard(2), utility::get_y_in_keyboard(0)}, KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_r, 'R', nullptr, {utility::get_x_in_keyboard(3), utility::get_y_in_keyboard(0)}, KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_t, 'T', nullptr, {utility::get_x_in_keyboard(4), utility::get_y_in_keyboard(0)}, KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_y, 'Y', nullptr, {utility::get_x_in_keyboard(5), utility::get_y_in_keyboard(0)}, KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_u, 'U', nullptr, {utility::get_x_in_keyboard(6), utility::get_y_in_keyboard(0)}, KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_i, 'I', nullptr, {utility::get_x_in_keyboard(7), utility::get_y_in_keyboard(0)}, KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_o, 'O', nullptr, {utility::get_x_in_keyboard(8), utility::get_y_in_keyboard(0)}, KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_p, 'P', nullptr, {utility::get_x_in_keyboard(9), utility::get_y_in_keyboard(0)}, KeyWidth, KeyHeight},
                 //Row 2
-                {&CoreKeyboard::s_key_a, 'A', nullptr, utility::get_x_in_keyboard(0) + (KeyWidth / 2), utility::get_y_in_keyboard(1), KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_s, 'S', nullptr, utility::get_x_in_keyboard(1) + (KeyWidth / 2), utility::get_y_in_keyboard(1), KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_d, 'D', nullptr, utility::get_x_in_keyboard(2) + (KeyWidth / 2), utility::get_y_in_keyboard(1), KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_f, 'F', nullptr, utility::get_x_in_keyboard(3) + (KeyWidth / 2), utility::get_y_in_keyboard(1), KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_g, 'G', nullptr, utility::get_x_in_keyboard(4) + (KeyWidth / 2), utility::get_y_in_keyboard(1), KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_h, 'H', nullptr, utility::get_x_in_keyboard(5) + (KeyWidth / 2), utility::get_y_in_keyboard(1), KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_j, 'J', nullptr, utility::get_x_in_keyboard(6) + (KeyWidth / 2), utility::get_y_in_keyboard(1), KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_k, 'K', nullptr, utility::get_x_in_keyboard(7) + (KeyWidth / 2), utility::get_y_in_keyboard(1), KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_l, 'L', nullptr, utility::get_x_in_keyboard(8) + (KeyWidth / 2), utility::get_y_in_keyboard(1), KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_a, 'A', nullptr, {utility::get_x_in_keyboard(0) + (KeyWidth / 2), utility::get_y_in_keyboard(1)}, KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_s, 'S', nullptr, {utility::get_x_in_keyboard(1) + (KeyWidth / 2), utility::get_y_in_keyboard(1)}, KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_d, 'D', nullptr, {utility::get_x_in_keyboard(2) + (KeyWidth / 2), utility::get_y_in_keyboard(1)}, KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_f, 'F', nullptr, {utility::get_x_in_keyboard(3) + (KeyWidth / 2), utility::get_y_in_keyboard(1)}, KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_g, 'G', nullptr, {utility::get_x_in_keyboard(4) + (KeyWidth / 2), utility::get_y_in_keyboard(1)}, KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_h, 'H', nullptr, {utility::get_x_in_keyboard(5) + (KeyWidth / 2), utility::get_y_in_keyboard(1)}, KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_j, 'J', nullptr, {utility::get_x_in_keyboard(6) + (KeyWidth / 2), utility::get_y_in_keyboard(1)}, KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_k, 'K', nullptr, {utility::get_x_in_keyboard(7) + (KeyWidth / 2), utility::get_y_in_keyboard(1)}, KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_l, 'L', nullptr, {utility::get_x_in_keyboard(8) + (KeyWidth / 2), utility::get_y_in_keyboard(1)}, KeyWidth, KeyHeight},
                 //Row 3
-                {&CoreKeyboard::s_key_caps, CapsId, nullptr, utility::get_x_in_keyboard(0), utility::get_y_in_keyboard(2), CapsWidth, KeyHeight},
-                {&CoreKeyboard::s_key_z, 'Z', nullptr, utility::get_x_in_keyboard(1) + (KeyWidth / 2), utility::get_y_in_keyboard(2), KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_x, 'X', nullptr, utility::get_x_in_keyboard(2) + (KeyWidth / 2), utility::get_y_in_keyboard(2), KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_c, 'C', nullptr, utility::get_x_in_keyboard(3) + (KeyWidth / 2), utility::get_y_in_keyboard(2), KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_v, 'V', nullptr, utility::get_x_in_keyboard(4) + (KeyWidth / 2), utility::get_y_in_keyboard(2), KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_b, 'B', nullptr, utility::get_x_in_keyboard(5) + (KeyWidth / 2), utility::get_y_in_keyboard(2), KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_n, 'N', nullptr, utility::get_x_in_keyboard(6) + (KeyWidth / 2), utility::get_y_in_keyboard(2), KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_m, 'M', nullptr, utility::get_x_in_keyboard(7) + (KeyWidth / 2), utility::get_y_in_keyboard(2), KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_del, DelId, nullptr, utility::get_x_in_keyboard(8) + (KeyWidth / 2), utility::get_y_in_keyboard(2), DelWidth, KeyHeight},
+                {&CoreKeyboard::s_key_caps, CapsId, nullptr, {utility::get_x_in_keyboard(0), utility::get_y_in_keyboard(2)}, CapsWidth, KeyHeight},
+                {&CoreKeyboard::s_key_z, 'Z', nullptr, {utility::get_x_in_keyboard(1) + (KeyWidth / 2), utility::get_y_in_keyboard(2)}, KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_x, 'X', nullptr, {utility::get_x_in_keyboard(2) + (KeyWidth / 2), utility::get_y_in_keyboard(2)}, KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_c, 'C', nullptr, {utility::get_x_in_keyboard(3) + (KeyWidth / 2), utility::get_y_in_keyboard(2)}, KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_v, 'V', nullptr, {utility::get_x_in_keyboard(4) + (KeyWidth / 2), utility::get_y_in_keyboard(2)}, KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_b, 'B', nullptr, {utility::get_x_in_keyboard(5) + (KeyWidth / 2), utility::get_y_in_keyboard(2)}, KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_n, 'N', nullptr, {utility::get_x_in_keyboard(6) + (KeyWidth / 2), utility::get_y_in_keyboard(2)}, KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_m, 'M', nullptr, {utility::get_x_in_keyboard(7) + (KeyWidth / 2), utility::get_y_in_keyboard(2)}, KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_del, DelId, nullptr, {utility::get_x_in_keyboard(8) + (KeyWidth / 2), utility::get_y_in_keyboard(2)}, DelWidth, KeyHeight},
                 //Row 4
-                {&CoreKeyboard::s_key_esc, EscId, nullptr, utility::get_x_in_keyboard(0), utility::get_y_in_keyboard(3), EscWidth, KeyHeight},
-                {&CoreKeyboard::s_key_num_switch, NumSwitchId, nullptr, utility::get_x_in_keyboard(2), utility::get_y_in_keyboard(3), SwitchWidth, KeyHeight},
-                {&CoreKeyboard::s_key_space, SpaceId, nullptr, utility::get_x_in_keyboard(3) + (KeyWidth / 2), utility::get_y_in_keyboard(3), SpaceWidth, KeyHeight},
-                {&CoreKeyboard::s_key_dot, DotId, nullptr, utility::get_x_in_keyboard(6) + (KeyWidth / 2), utility::get_y_in_keyboard(3), DotWidth, KeyHeight},
-                {&CoreKeyboard::s_key_enter, EnterId, nullptr, utility::get_x_in_keyboard(8), utility::get_y_in_keyboard(3), EnterWidth, KeyHeight},
-                {nullptr, 0, nullptr, 0, 0, 0, 0}
+                {&CoreKeyboard::s_key_esc, EscId, nullptr, {utility::get_x_in_keyboard(0), utility::get_y_in_keyboard(3)}, EscWidth, KeyHeight},
+                {&CoreKeyboard::s_key_num_switch, NumSwitchId, nullptr, {utility::get_x_in_keyboard(2), utility::get_y_in_keyboard(3)}, SwitchWidth, KeyHeight},
+                {&CoreKeyboard::s_key_space, SpaceId, nullptr, {utility::get_x_in_keyboard(3) + (KeyWidth / 2), utility::get_y_in_keyboard(3)}, SpaceWidth, KeyHeight},
+                {&CoreKeyboard::s_key_dot, DotId, nullptr, {utility::get_x_in_keyboard(6) + (KeyWidth / 2), utility::get_y_in_keyboard(3)}, DotWidth, KeyHeight},
+                {&CoreKeyboard::s_key_enter, EnterId, nullptr, {utility::get_x_in_keyboard(8), utility::get_y_in_keyboard(3)}, EnterWidth, KeyHeight},
+                {nullptr, 0, nullptr, {0, 0}, 0, 0}
         };
         CoreWindow::window_tree CoreKeyboard::s_numpad_tree[] = /* NOLINT */
         {
-                {&CoreKeyboard::s_key_1, '1', nullptr, utility::get_x_in_keyboard(0), utility::get_y_in_keyboard(0), KeyWidth, KeyWidth},
-                {&CoreKeyboard::s_key_2, '2', nullptr, utility::get_x_in_keyboard(1), utility::get_y_in_keyboard(0), KeyWidth, KeyWidth},
-                {&CoreKeyboard::s_key_3, '3', nullptr, utility::get_x_in_keyboard(2), utility::get_y_in_keyboard(0), KeyWidth, KeyWidth},
-                {&CoreKeyboard::s_key_4, '4', nullptr, utility::get_x_in_keyboard(0), utility::get_y_in_keyboard(1), KeyWidth, KeyWidth},
-                {&CoreKeyboard::s_key_5, '5', nullptr, utility::get_x_in_keyboard(1), utility::get_y_in_keyboard(1), KeyWidth, KeyWidth},
-                {&CoreKeyboard::s_key_6, '6', nullptr, utility::get_x_in_keyboard(2), utility::get_y_in_keyboard(1), KeyWidth, KeyWidth},
-                {&CoreKeyboard::s_key_7, '7', nullptr, utility::get_x_in_keyboard(0), utility::get_y_in_keyboard(2), KeyWidth, KeyWidth},
-                {&CoreKeyboard::s_key_8, '8', nullptr, utility::get_x_in_keyboard(1), utility::get_y_in_keyboard(2), KeyWidth, KeyWidth},
-                {&CoreKeyboard::s_key_9, '9', nullptr, utility::get_x_in_keyboard(2), utility::get_y_in_keyboard(2), KeyWidth, KeyWidth},
+                {&CoreKeyboard::s_key_1, '1', nullptr, {utility::get_x_in_keyboard(0), utility::get_y_in_keyboard(0)}, KeyWidth, KeyWidth},
+                {&CoreKeyboard::s_key_2, '2', nullptr, {utility::get_x_in_keyboard(1), utility::get_y_in_keyboard(0)}, KeyWidth, KeyWidth},
+                {&CoreKeyboard::s_key_3, '3', nullptr, {utility::get_x_in_keyboard(2), utility::get_y_in_keyboard(0)}, KeyWidth, KeyWidth},
+                {&CoreKeyboard::s_key_4, '4', nullptr, {utility::get_x_in_keyboard(0), utility::get_y_in_keyboard(1)}, KeyWidth, KeyWidth},
+                {&CoreKeyboard::s_key_5, '5', nullptr, {utility::get_x_in_keyboard(1), utility::get_y_in_keyboard(1)}, KeyWidth, KeyWidth},
+                {&CoreKeyboard::s_key_6, '6', nullptr, {utility::get_x_in_keyboard(2), utility::get_y_in_keyboard(1)}, KeyWidth, KeyWidth},
+                {&CoreKeyboard::s_key_7, '7', nullptr, {utility::get_x_in_keyboard(0), utility::get_y_in_keyboard(2)}, KeyWidth, KeyWidth},
+                {&CoreKeyboard::s_key_8, '8', nullptr, {utility::get_x_in_keyboard(1), utility::get_y_in_keyboard(2)}, KeyWidth, KeyWidth},
+                {&CoreKeyboard::s_key_9, '9', nullptr, {utility::get_x_in_keyboard(2), utility::get_y_in_keyboard(2)}, KeyWidth, KeyWidth},
 
-                {&CoreKeyboard::s_key_esc, EscId, nullptr, utility::get_x_in_keyboard(0), utility::get_y_in_keyboard(3), KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_0, '0', nullptr, utility::get_x_in_keyboard(1), utility::get_y_in_keyboard(3), KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_dot, DotId, nullptr, utility::get_x_in_keyboard(2), utility::get_y_in_keyboard(3), KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_del, DelId, nullptr, utility::get_x_in_keyboard(3), utility::get_y_in_keyboard(0), KeyWidth, KeyHeight * 2 + 2},
-                {&CoreKeyboard::s_key_enter, EnterId, nullptr, utility::get_x_in_keyboard(3), utility::get_y_in_keyboard(2), KeyWidth, KeyHeight * 2 + 2},
-                {nullptr, 0, nullptr, 0, 0, 0, 0}
+                {&CoreKeyboard::s_key_esc, EscId, nullptr, {utility::get_x_in_keyboard(0), utility::get_y_in_keyboard(3)}, KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_0, '0', nullptr, {utility::get_x_in_keyboard(1), utility::get_y_in_keyboard(3)}, KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_dot, DotId, nullptr, {utility::get_x_in_keyboard(2), utility::get_y_in_keyboard(3)}, KeyWidth, KeyHeight},
+                {&CoreKeyboard::s_key_del, DelId, nullptr, {utility::get_x_in_keyboard(3), utility::get_y_in_keyboard(0)}, KeyWidth, KeyHeight * 2 + 2},
+                {&CoreKeyboard::s_key_enter, EnterId, nullptr, {utility::get_x_in_keyboard(3), utility::get_y_in_keyboard(2)}, KeyWidth, KeyHeight * 2 + 2},
+                {nullptr, 0, nullptr, {0, 0}, 0, 0}
         };
 
         CoreKeyboard::CONNECT_STATE CoreKeyboard::connect(CoreWindow *user, IdType resource_id, KEYBOARD_BOARD style)
@@ -2586,14 +2834,14 @@ namespace Gal {
                 return CoreWindow::connect(
                         user, resource_id,
                         nullptr,
-                        rect.distance_of_left(0), rect.distance_of_top(parent_rect.get_height() - KeyboardHeight - 1),
+                        {rect.distance_of_left(0), rect.distance_of_top(parent_rect.get_height() - KeyboardHeight - 1)},
                         KeyboardWidth, KeyboardHeight,
                         CoreKeyboard::s_keyboard_tree);
             }
             else if(style == KEYBOARD_BOARD::NUM_ONLY)
             {
                 //Place keyboard below the user window.
-                return CoreWindow::connect(user, resource_id, nullptr, 0, rect.get_height(), NumpadWidth, NumpadHeight, CoreKeyboard::s_numpad_tree);
+                return CoreWindow::connect(user, resource_id, nullptr, {0, rect.get_height()}, NumpadWidth, NumpadHeight, CoreKeyboard::s_numpad_tree);
             }
             else
             {
@@ -2695,8 +2943,9 @@ namespace Gal {
                         (m_state == CoreWindow::WINDOW_STATE::PUSHED)
                                 ? s_keyboard.on_navigate(key)
                                 : (
-                                          on_touch(m_window_rect.m_left, m_window_rect.m_top, CoreWindow::TOUCH_ACTION::DOWN),
-                                          on_touch(m_window_rect.m_left, m_window_rect.m_top, CoreWindow::TOUCH_ACTION::DOWN));
+                                   on_touch(m_window_rect.m_left_top_corner, CoreWindow::TOUCH_ACTION::DOWN),
+                                   on_touch(m_window_rect.m_left_top_corner, CoreWindow::TOUCH_ACTION::UP)
+                                   );
                         break;
                     case CoreWindow::NAVIGATION_KEY::BACKWARD:
                     case CoreWindow::NAVIGATION_KEY::FORWARD:
@@ -2705,8 +2954,8 @@ namespace Gal {
                 }
             }
 
-            void on_touch(int x, int y, TOUCH_ACTION action) override {
-                (action == CoreWindow::TOUCH_ACTION::DOWN) ? on_touch_down(x, y) : on_touch_up(x, y);
+            void on_touch(CorePoint point, TOUCH_ACTION action) override {
+                (action == CoreWindow::TOUCH_ACTION::DOWN) ? on_touch_down(point) : on_touch_up(point);
             }
 
             void on_keyboard_click(IdType id, const std::any &param) {
@@ -2740,18 +2989,18 @@ namespace Gal {
                 s_keyboard.show_window();
             }
 
-            void on_touch_down(int x, int y) {
-                if (m_window_rect.is_in_rect(x, y)) {
+            void on_touch_down(CorePoint point) {
+                if (m_window_rect.is_in_rect(point)) {
                     //click edit box
                     if (m_state == CoreWindow::WINDOW_STATE::NORMAL) {
                         m_parent->set_child_focus(this);
                     }
                 } else {
                     auto rect = s_keyboard.get_window_rect();
-                    rect.move_rect(m_window_rect.m_left, m_window_rect.m_top);
-                    if (rect.is_in_rect(x, y)) {
+                    rect.move_rect(m_window_rect.m_left_top_corner.m_x, m_window_rect.m_left_top_corner.m_y);
+                    if (rect.is_in_rect(point)) {
                         //click key board
-                        CoreWindow::on_touch(x, y, CoreWindow::TOUCH_ACTION::DOWN);
+                        CoreWindow::on_touch(point, CoreWindow::TOUCH_ACTION::DOWN);
                     } else if (m_state == CoreWindow::WINDOW_STATE::PUSHED) {
                         m_state = CoreWindow::WINDOW_STATE::FOCUSED;
                         on_paint();
@@ -2759,17 +3008,17 @@ namespace Gal {
                 }
             }
 
-            void on_touch_up(int x, int y) {
+            void on_touch_up(CorePoint point) {
                 if (m_state == CoreWindow::WINDOW_STATE::FOCUSED) {
                     m_state = CoreWindow::WINDOW_STATE::PUSHED;
                     on_paint();
                 } else if (m_state == CoreWindow::WINDOW_STATE::PUSHED) {
-                    if (m_window_rect.is_in_rect(x, y)) {
+                    if (m_window_rect.is_in_rect(point)) {
                         // click edit box
                         m_state = CoreWindow::WINDOW_STATE::FOCUSED;
                         on_paint();
                     } else {
-                        CoreWindow::on_touch(x, y, CoreWindow::TOUCH_ACTION::UP);
+                        CoreWindow::on_touch(point, CoreWindow::TOUCH_ACTION::UP);
                     }
                 }
             }
@@ -2886,8 +3135,8 @@ namespace Gal {
             void on_navigate(NAVIGATION_KEY key) override {
                 switch (key) {
                     case CoreWindow::NAVIGATION_KEY::ENTER:
-                        on_touch(m_window_rect.m_left, m_window_rect.m_top, CoreWindow::TOUCH_ACTION::DOWN);
-                        on_touch(m_window_rect.m_left, m_window_rect.m_top, CoreWindow::TOUCH_ACTION::UP);
+                        on_touch(m_window_rect.m_left_top_corner, CoreWindow::TOUCH_ACTION::DOWN);
+                        on_touch(m_window_rect.m_left_top_corner, CoreWindow::TOUCH_ACTION::UP);
                         return;
                     case CoreWindow::NAVIGATION_KEY::BACKWARD:
                         if (m_state != CoreWindow::WINDOW_STATE::PUSHED) {
@@ -2904,26 +3153,25 @@ namespace Gal {
                 }
             }
 
-            void on_touch(int x, int y, TOUCH_ACTION action) override {
-                (action == CoreWindow::TOUCH_ACTION::DOWN) ? on_touch_down(x, y) : on_touch_up(x, y);
+            void on_touch(CorePoint point, TOUCH_ACTION action) override {
+                (action == CoreWindow::TOUCH_ACTION::DOWN) ? on_touch_down(point) : on_touch_up(point);
             }
 
         private:
             void update_list_list() {
                 m_list_window_rect = m_window_rect;
-                m_list_window_rect.m_top = m_window_rect.m_bottom + 1;
-                m_list_window_rect.m_bottom = m_list_window_rect.m_top + static_cast<int>(m_item_array.size() * ListboxItemHeight);
+                m_list_window_rect.m_left_top_corner.m_y = m_window_rect.m_right_bottom_corner.m_y + 1;
+                m_list_window_rect.m_right_bottom_corner.m_y = m_list_window_rect.m_left_top_corner.m_y + static_cast<int>(m_item_array.size() * ListboxItemHeight);
 
                 m_list_screen_rect = get_screen_rect();
-                m_list_screen_rect.m_top = m_list_screen_rect.m_bottom + 1;
-                m_list_screen_rect.m_bottom = m_list_screen_rect.m_top + static_cast<int>(m_item_array.size() * ListboxItemHeight);
+                m_list_screen_rect.m_left_top_corner.m_y = m_list_screen_rect.m_right_bottom_corner.m_y + 1;
+                m_list_screen_rect.m_right_bottom_corner.m_y = m_list_screen_rect.m_left_top_corner.m_y + static_cast<int>(m_item_array.size() * ListboxItemHeight);
             }
 
             void show_list() {
                 //draw all items
-                auto left = m_list_screen_rect.m_left;
-                auto top = m_list_screen_rect.m_top;
-                auto right = m_list_screen_rect.m_right;
+                auto [left, top] = m_list_screen_rect.m_left_top_corner;
+                auto right = m_list_screen_rect.m_right_bottom_corner.m_x;
                 for (auto i = 0; i < m_item_array.size(); ++i) {
                     auto rect = CoreRect(left, top + i * ListboxItemHeight, right, top + i * ListboxItemHeight + ListboxItemHeight);
                     if (m_select_item == i) {
@@ -2936,15 +3184,15 @@ namespace Gal {
                 }
             }
 
-            void on_touch_down(int x, int y) {
-                if (m_window_rect.is_in_rect(x, y)) {
+            void on_touch_down(CorePoint point) {
+                if (m_window_rect.is_in_rect(point)) {
                     //click base
                     if (m_state == CoreWindow::WINDOW_STATE::NORMAL) {
                         m_parent->set_child_focus(this);
                     }
-                } else if (m_list_window_rect.is_in_rect(x, y)) {
+                } else if (m_list_window_rect.is_in_rect(point)) {
                     //click extend list
-                    CoreWindow::on_touch(x, y, CoreWindow::TOUCH_ACTION::DOWN);
+                    CoreWindow::on_touch(point, CoreWindow::TOUCH_ACTION::DOWN);
                 } else {
                     if (m_state == CoreWindow::WINDOW_STATE::PUSHED) {
                         m_state = CoreWindow::WINDOW_STATE::FOCUSED;
@@ -2956,25 +3204,25 @@ namespace Gal {
                 }
             }
 
-            void on_touch_up(int x, int y) {
+            void on_touch_up(CorePoint point) {
                 if (m_state == CoreWindow::WINDOW_STATE::FOCUSED) {
                     m_state = CoreWindow::WINDOW_STATE::PUSHED;
                     on_paint();
                 } else if (m_state == CoreWindow::WINDOW_STATE::PUSHED) {
-                    if (m_window_rect.is_in_rect(x, y)) {
+                    if (m_window_rect.is_in_rect(point)) {
                         //click base
                         m_state = CoreWindow::WINDOW_STATE::FOCUSED;
                         on_paint();
-                    } else if (m_list_window_rect.is_in_rect(x, y)) {
+                    } else if (m_list_window_rect.is_in_rect(point)) {
                         //click extend list
                         m_state = CoreWindow::WINDOW_STATE::FOCUSED;
-                        select_item((y - m_list_window_rect.m_top) / ListboxItemHeight);
+                        select_item((point.m_y - m_list_window_rect.m_left_top_corner.m_y) / ListboxItemHeight);
                         on_paint();
                         if (m_on_change) {
                             (m_parent->*m_on_change)(m_id, m_select_item);
                         }
                     } else {
-                        CoreWindow::on_touch(x, y, CoreWindow::TOUCH_ACTION::UP);
+                        CoreWindow::on_touch(point, CoreWindow::TOUCH_ACTION::UP);
                     }
                 }
             }
@@ -3049,7 +3297,7 @@ namespace Gal {
 
             ADD_SLIDE_STATE add_slide(
                     CoreWindow* slide, IdType resource_id,
-                    int x, int y,
+                    CorePoint point,
                     int width, int height,
                     CoreWindow::window_tree* child_tree = nullptr,
                     CoreSurface::Z_ORDER_LEVEL max_z_order = CoreSurface::Z_ORDER_LEVEL::LOWEST)
@@ -3061,7 +3309,7 @@ namespace Gal {
                 new_surface->set_active(false);
                 set_surface(new_surface);
 
-                slide->connect(this, resource_id, nullptr, x, y, width, height, child_tree);
+                slide->connect(this, resource_id, nullptr, point, width, height, child_tree);
                 set_surface(old_surface);
 
                 for(auto& each : m_slides)
@@ -3101,7 +3349,7 @@ namespace Gal {
                 }
             }
 
-            void on_touch(int x, int y, TOUCH_ACTION action) override;
+            void on_touch(CorePoint point, TOUCH_ACTION action) override;
 
             void on_navigate(NAVIGATION_KEY key) override
             {
@@ -3138,8 +3386,9 @@ namespace Gal {
                   m_down_x(0), m_move_x(0),
                   m_state(TOUCH_STATE::IDLE), m_slide_group(group) {};
 
-            bool handle_swipe(int x, int y, CoreKeyboard::TOUCH_ACTION action)
+            bool handle_swipe(CorePoint point, CoreKeyboard::TOUCH_ACTION action)
             {
+                auto [x, _] = point;
                 if(action == CoreWindow::TOUCH_ACTION::DOWN)
                 {
                     if(m_state == TOUCH_STATE::IDLE)
@@ -3308,13 +3557,14 @@ namespace Gal {
               m_gesture(new CoreGesture(this)),
               m_slides({nullptr}){}
 
-        void CoreSlideGroup::on_touch(int x, int y, TOUCH_ACTION action)
+        void CoreSlideGroup::on_touch(CorePoint point, TOUCH_ACTION action)
         {
+            auto [x, y] = point;
             x = m_window_rect.distance_of_left(x);
             y = m_window_rect.distance_of_top(y);
-            if(m_gesture->handle_swipe(x, y, action))
+            if(m_gesture->handle_swipe({x, y}, action))
             {
-                m_slides[m_active_slide_index]->on_touch(x, y, action);
+                m_slides[m_active_slide_index]->on_touch({x, y}, action);
             }
         }
 
@@ -3322,7 +3572,7 @@ namespace Gal {
         class CoreSpinBoxButton : public CoreButton
         {
             friend class CoreSpinBox;
-            void on_touch(int x, int y, TOUCH_ACTION action) override;
+            void on_touch(CorePoint point, TOUCH_ACTION action) override;
             CoreSpinBox* m_spin_box;
         };
 
@@ -3354,7 +3604,7 @@ namespace Gal {
             void on_paint() override
             {
                 auto rect = get_screen_rect();
-                rect.m_right = rect.m_left + (rect.get_width() * 2 / 3);
+                rect.m_right_bottom_corner.m_x = rect.m_left_top_corner.m_x + (rect.get_width() * 2 / 3);
                 m_surface->fill_rect(rect, CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_NORMAL), m_z_order);
                 CoreWord::draw_value_in_rect(m_surface, m_parent->get_z_order(), m_curr_value, m_digit, rect, m_font_type, m_font_color, CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_NORMAL), CoreWord::ALIGN_TYPE::HORIZONTAL_CENTER | CoreWord::ALIGN_TYPE::VERTICAL_CENTER);
             }
@@ -3369,11 +3619,15 @@ namespace Gal {
                 m_digit = 0;
                 m_step = 1;
                 //link arrow button position
-                auto rect = get_window_rect();
                 m_button_down.m_spin_box = this;
                 m_button_up.m_spin_box = this;
-                m_button_down.connect(m_parent, ArrowDownId, ArrowDownChar, rect.m_left + rect.get_width() * 2 / 3, rect.m_top, rect.get_width() / 3, rect.get_height() / 2, nullptr);
-                m_button_up.connect(m_parent, ArrowUpId, ArrowUpChar, rect.m_left + rect.get_width() * 2 / 3, rect.m_top + rect.get_height() / 2, rect.get_width() / 3, rect.get_height() / 2, nullptr);
+
+                auto rect = get_window_rect();
+                auto [point, _] = rect;
+                point.horizontal_move(rect.get_width() * 2 / 3);
+                m_button_down.connect(m_parent, ArrowDownId, ArrowDownChar, point, rect.get_width() / 3, rect.get_height() / 2, nullptr);
+                point.vertical_move(rect.get_height() / 2);
+                m_button_up.connect(m_parent, ArrowUpId, ArrowUpChar, point, rect.get_width() / 3, rect.get_height() / 2, nullptr);
             }
 
             void on_arrow_button_clicked(TOUCH_ACTION action)
@@ -3408,10 +3662,10 @@ namespace Gal {
             WindowCallback m_on_change;
         };
 
-        void CoreSpinBoxButton::on_touch(int x, int y, TOUCH_ACTION action)
+        void CoreSpinBoxButton::on_touch(CorePoint point, TOUCH_ACTION action)
         {
             m_spin_box->on_arrow_button_clicked(action);
-            CoreButton::on_touch(x, y, action);
+            CoreButton::on_touch(point, action);
         }
 
         class CoreTable : public CoreWindow
@@ -3475,17 +3729,17 @@ namespace Gal {
                 auto total_height = std::accumulate<decltype(m_row_heights.begin()), unsigned int>(m_row_heights.begin(), row_end, 0);
 
                 auto tmp_rect = get_screen_rect();
-                rect.m_left = tmp_rect.m_left + total_width;
-                rect.m_right = rect.m_left + m_column_widths[column];
-                if(rect.m_right > tmp_rect.m_right)
+                rect.m_left_top_corner.m_x = tmp_rect.m_left_top_corner.m_x + total_width;
+                rect.m_right_bottom_corner.m_x = rect.m_left_top_corner.m_x + m_column_widths[column];
+                if(auto& right = rect.m_right_bottom_corner.m_x; right > tmp_rect.m_right_bottom_corner.m_x)
                 {
-                    rect.m_right = tmp_rect.m_right;
+                    right = tmp_rect.m_right_bottom_corner.m_x;
                 }
-                rect.m_top = tmp_rect.m_top + total_height;
-                rect.m_bottom = rect.m_top + m_row_heights[row];
-                if(rect.m_bottom > tmp_rect.m_bottom)
+                rect.m_left_top_corner.m_y = tmp_rect.m_left_top_corner.m_y + total_height;
+                rect.m_right_bottom_corner.m_y = rect.m_left_top_corner.m_y + m_row_heights[row];
+                if(auto& bottom = rect.m_right_bottom_corner.m_y; bottom > tmp_rect.m_right_bottom_corner.m_y)
                 {
-                    rect.m_bottom = tmp_rect.m_bottom;
+                    bottom = tmp_rect.m_right_bottom_corner.m_y;
                 }
                 return rect;
             }
