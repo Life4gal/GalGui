@@ -34,7 +34,7 @@ namespace Gal {
      *      ......
      *      EnumType another_flag = flag | some_enum;
      *
-     *      <del>std::array<T, (1 | EnumMax)> replace std::array<T, static_cast<size_t>(EnumMax)> also supported</del>
+     *      <del>std::array<CoordinateType, (1 | EnumMax)> replace std::array<CoordinateType, static_cast<size_t>(EnumMax)> also supported</del>
      */
     template <typename Enum, typename EnumType, typename = std::enable_if_t<std::is_enum_v<Enum>>, typename = std::enable_if_t<std::is_same_v<EnumType, std::underlying_type_t<Enum>>>>
     constexpr EnumType operator|(const EnumType& lhs, const Enum& rhs)
@@ -220,7 +220,7 @@ namespace Gal {
         template<typename T, typename = std::enable_if_t<std::numeric_limits<T>::is_integer>>
         constexpr decltype(auto) abs(const T& n)
         {
-            // if T is not a integer type(like abs(1.1f)), it will not call this abs(invisible)
+            // if CoordinateType is not a integer type(like abs(1.1f)), it will not call this abs(invisible)
             constexpr auto bit_length = sizeof(T) * 8;
             return (n ^ (n >> (bit_length - 1))) - (n >> (bit_length - 1));
         }
@@ -257,24 +257,36 @@ namespace Gal {
     }
 
     namespace detail {
+        template<typename CoordinateType = int, typename = std::enable_if_t<std::is_arithmetic_v<CoordinateType>>>
         class CorePoint
         {
         public:
-            constexpr explicit CorePoint() noexcept : m_x(0), m_y(0) {};
+            constexpr explicit CorePoint() noexcept : m_x(CoordinateType()), m_y(CoordinateType()) {};
 
-            constexpr CorePoint(int x, int y) noexcept : m_x(x), m_y(y) {};
+            constexpr CorePoint(CoordinateType x, CoordinateType y) noexcept : m_x(x), m_y(y) {};
 
-            CorePoint operator+(const CorePoint& other) const noexcept
+            constexpr CorePoint(std::initializer_list<CoordinateType> list)
+            {
+                GalAssert(list.size() == 2);
+
+                m_x = *list.begin();
+                m_y = *list.end();
+            }
+
+            template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T> && std::is_convertible_v<T, CoordinateType>>>
+            CorePoint operator+(const CorePoint<T>& other) const noexcept
             {
                 return {m_x + other.m_x, m_y + other.m_y};
             }
 
-            CorePoint operator+(int distance) const noexcept
+            template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T> && std::is_convertible_v<T, CoordinateType>>>
+            CorePoint operator+(T distance) const noexcept
             {
                 return {m_x + distance, m_y + distance};
             }
 
-            CorePoint& operator+=(const CorePoint& other) noexcept
+            template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T> && std::is_convertible_v<T, CoordinateType>>>
+            CorePoint& operator+=(const CorePoint<T>& other) noexcept
             {
                 m_x += other.m_x;
                 m_y += other.m_y;
@@ -282,7 +294,8 @@ namespace Gal {
                 return *this;
             }
 
-            CorePoint& operator+=(int distance) noexcept
+            template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T> && std::is_convertible_v<T, CoordinateType>>>
+            CorePoint& operator+=(T distance) noexcept
             {
                 m_x += distance;
                 m_y += distance;
@@ -290,17 +303,20 @@ namespace Gal {
                 return *this;
             }
 
-            CorePoint operator-(const CorePoint& other) const noexcept
+            template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T> && std::is_convertible_v<T, CoordinateType>>>
+            CorePoint operator-(const CorePoint<T>& other) const noexcept
             {
                 return {m_x - other.m_x, m_y - other.m_y};
             }
 
-            CorePoint operator-(int distance) const noexcept
+            template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T> && std::is_convertible_v<T, CoordinateType>>>
+            CorePoint operator-(T distance) const noexcept
             {
                 return {m_x - distance, m_y - distance};
             }
 
-            CorePoint& operator-=(const CorePoint& other) noexcept
+            template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T> && std::is_convertible_v<T, CoordinateType>>>
+            CorePoint& operator-=(const CorePoint<T>& other) noexcept
             {
                 m_x -= other.m_x;
                 m_y -= other.m_y;
@@ -308,7 +324,8 @@ namespace Gal {
                 return *this;
             }
 
-            CorePoint& operator-=(int distance) noexcept
+            template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T> && std::is_convertible_v<T, CoordinateType>>>
+            CorePoint& operator-=(T distance) noexcept
             {
                 m_x -= distance;
                 m_y -= distance;
@@ -316,150 +333,178 @@ namespace Gal {
                 return *this;
             }
 
-            bool operator==(const CorePoint& other) const noexcept
+            template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T> && std::is_convertible_v<T, CoordinateType>>>
+            bool operator==(const CorePoint<T>& other) const noexcept
             {
                 return m_x == other.m_x && m_y == other.m_y;
             }
 
-            bool operator>(const CorePoint& other) const noexcept
+            template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T> && std::is_convertible_v<T, CoordinateType>>>
+            bool operator>(const CorePoint<T>& other) const noexcept
             {
                 return m_x > other.m_x && m_y > other.m_y;
             }
 
-            bool operator>=(const CorePoint& other) const noexcept
+            template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T> && std::is_convertible_v<T, CoordinateType>>>
+            bool operator>=(const CorePoint<T>& other) const noexcept
             {
                 return this->operator>(other) || this->operator==(other);
             }
 
-            bool operator<(const CorePoint& other) const noexcept
+            template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T> && std::is_convertible_v<T, CoordinateType>>>
+            bool operator<(const CorePoint<T>& other) const noexcept
             {
                 return !(this->operator>(other) || this->operator==(other));
             }
 
-            bool operator<=(const CorePoint& other) const noexcept
+            template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T> && std::is_convertible_v<T, CoordinateType>>>
+            bool operator<=(const CorePoint<T>& other) const noexcept
             {
                 return this->operator<(other) || this->operator==(other);
             }
 
-            [[nodiscard]] constexpr bool horizontal_greater_than(int x) const noexcept
+            template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T> && std::is_convertible_v<T, CoordinateType>>>
+            [[nodiscard]] constexpr bool horizontal_greater_than(T x) const noexcept
             {
                 return m_x > x;
             }
 
-            [[nodiscard]] constexpr bool horizontal_greater_equal(int x) const noexcept
+            template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T> && std::is_convertible_v<T, CoordinateType>>>
+            [[nodiscard]] constexpr bool horizontal_greater_equal(T x) const noexcept
             {
                 return m_x >= x;
             }
 
-            [[nodiscard]] constexpr bool vertical_greater_than(int y) const noexcept
+            template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T> && std::is_convertible_v<T, CoordinateType>>>
+            [[nodiscard]] constexpr bool vertical_greater_than(T y) const noexcept
             {
                 return m_y > y;
             }
 
-            [[nodiscard]] constexpr bool vertical_greater_equal(int y) const noexcept
+            template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T> && std::is_convertible_v<T, CoordinateType>>>
+            [[nodiscard]] constexpr bool vertical_greater_equal(T y) const noexcept
             {
                 return m_y >= y;
             }
 
-            [[nodiscard]] constexpr bool greater_than(int x, int y) const noexcept
+            template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T> && std::is_convertible_v<T, CoordinateType>>>
+            [[nodiscard]] constexpr bool greater_than(T x, T y) const noexcept
             {
                 return horizontal_greater_than(x) && vertical_greater_than(y);
             }
 
-            [[nodiscard]] constexpr bool greater_equal(int x, int y) const noexcept
+            template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T> && std::is_convertible_v<T, CoordinateType>>>
+            [[nodiscard]] constexpr bool greater_equal(T x, T y) const noexcept
             {
                 return horizontal_greater_equal(x) && vertical_greater_equal(y);
             }
 
-            [[nodiscard]] constexpr int horizontal_distance(const CorePoint& other) const noexcept
+            template <typename T, typename RetType = std::common_type_t<T, CoordinateType>, typename = std::enable_if_t<std::is_arithmetic_v<T> && std::is_convertible_v<T, CoordinateType>>>
+            [[nodiscard]] constexpr RetType horizontal_distance(const CorePoint<T>& other) const noexcept
             {
                 return other.m_x - m_x + 1;
             }
 
-            [[nodiscard]] constexpr int vertical_distance(const CorePoint& other) const noexcept
+            template <typename T, typename RetType = std::common_type_t<T, CoordinateType>, typename = std::enable_if_t<std::is_arithmetic_v<T> && std::is_convertible_v<T, CoordinateType>>>
+            [[nodiscard]] constexpr RetType vertical_distance(const CorePoint<T>& other) const noexcept
             {
                 return other.m_y - m_y + 1;
             }
 
-            [[nodiscard]] constexpr int horizontal_distance(int x) const noexcept
+            template <typename T, typename RetType = std::common_type_t<T, CoordinateType>, typename = std::enable_if_t<std::is_arithmetic_v<T> && std::is_convertible_v<T, CoordinateType>>>
+            [[nodiscard]] constexpr RetType horizontal_distance(T x) const noexcept
             {
                 return x - m_x + 1;
             }
 
-            [[nodiscard]] constexpr int vertical_distance(int y) const noexcept
+            template <typename T, typename RetType = std::common_type_t<T, CoordinateType>, typename = std::enable_if_t<std::is_arithmetic_v<T> && std::is_convertible_v<T, CoordinateType>>>
+            [[nodiscard]] constexpr RetType vertical_distance(T y) const noexcept
             {
                 return y - m_y + 1;
             }
 
-            [[nodiscard]] constexpr double get_distance(const CorePoint& other) const noexcept
+            template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T> && std::is_convertible_v<T, CoordinateType>>>
+            [[nodiscard]] constexpr auto get_distance(const CorePoint<T>& other) const noexcept
             {
                 return std::sqrt(std::pow(horizontal_distance(other), 2) + std::pow(vertical_distance(other), 2));
             }
 
-            constexpr void reposition(int x, int y) noexcept
+            template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T> && std::is_convertible_v<T, CoordinateType>>>
+            constexpr void reposition(T x, T y) noexcept
             {
                 m_x = x;
                 m_y = y;
             }
 
-            constexpr void horizontal_move(int x) noexcept
+            template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T> && std::is_convertible_v<T, CoordinateType>>>
+            constexpr void horizontal_move(T x) noexcept
             {
                 m_x += x;
             }
 
-            constexpr void vertical_move(int y) noexcept
+            template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T> && std::is_convertible_v<T, CoordinateType>>>
+            constexpr void vertical_move(T y) noexcept
             {
                 m_y += y;
             }
 
-            constexpr void move_to(int x, int y) noexcept
+            template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T> && std::is_convertible_v<T, CoordinateType>>>
+            constexpr void move_to(T x, T y) noexcept
             {
                 horizontal_move(x);
                 vertical_move(y);
             }
 
             // clamp a point in the specified area (not allowed on the edge of the area)
-            constexpr void clamp_point_upper(int x, int y) noexcept
+            template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T> && std::is_convertible_v<T, CoordinateType>>>
+            constexpr void clamp_point_upper(T x, T y) noexcept
             {
                 m_x = (m_x >= x) ? (x - 1) : m_x;
                 m_y = (m_y >= y) ? (y - 1) : m_y;
             }
 
             // clamp a point in the specified area (allowed on the edge of the area)
-            constexpr void clamp_point_lower(int x, int y) noexcept
+            template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T> && std::is_convertible_v<T, CoordinateType>>>
+            constexpr void clamp_point_lower(T x, T y) noexcept
             {
                 m_x = (m_x < x) ? x : m_x;
                 m_y = (m_y < y) ? y : m_y;
             }
 
             // [x1, x2)
-            [[nodiscard]] constexpr bool horizontal_between(int x1, int x2) const noexcept
+            template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T> && std::is_convertible_v<T, CoordinateType>>>
+            [[nodiscard]] constexpr bool horizontal_between(T x1, T x2) const noexcept
             {
                 return m_x >= x1 && m_x < x2;
             }
 
             // [y1, y2)
-            [[nodiscard]] constexpr bool vertical_between(int y1, int y2) const noexcept
+            template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T> && std::is_convertible_v<T, CoordinateType>>>
+            [[nodiscard]] constexpr bool vertical_between(T y1, T y2) const noexcept
             {
                 return m_y >= y1 && m_y < y2;
             }
 
-            int m_x;
-            int m_y;
+            CoordinateType m_x;
+            CoordinateType m_y;
         };
 
+        template<typename CoordinateType = int, typename = std::enable_if_t<std::is_arithmetic_v<CoordinateType>>>
         class CoreRect {
         public:
             constexpr explicit CoreRect() noexcept
-                : m_left_top_corner(-1, -1), m_right_bottom_corner(-1, -1) {};
+                : m_left_top_corner(), m_right_bottom_corner() {};
 
-            constexpr CoreRect(int left, int top, int width, int height) noexcept
+            template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T> && std::is_convertible_v<T, CoordinateType>>>
+            constexpr CoreRect(T left, T top, T width, T height) noexcept
                 : m_left_top_corner(left, top), m_right_bottom_corner(left + width - 1, top + height - 1) {};
 
-            constexpr CoreRect(CorePoint left_top, CorePoint right_bottom) noexcept
+            template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T> && std::is_convertible_v<T, CoordinateType>>>
+            constexpr CoreRect(CorePoint<T> left_top, CorePoint<T> right_bottom) noexcept
                 : m_left_top_corner(left_top), m_right_bottom_corner(right_bottom) {};
 
-            void set_rect(int left, int top, int width, int height) noexcept
+            template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T> && std::is_convertible_v<T, CoordinateType>>>
+            void set_rect(T left, T top, T width, T height) noexcept
             {
                 GalAssert(width > 0 && height > 0);
 
@@ -467,72 +512,122 @@ namespace Gal {
                 m_right_bottom_corner.reposition(left + width - 1, top + height - 1);
             }
 
-            void set_rect(const CorePoint& left_top, const CorePoint& right_bottom) noexcept
+            template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T> && std::is_convertible_v<T, CoordinateType>>>
+            void set_rect(const CorePoint<T>& left_top, const CorePoint<T>& right_bottom) noexcept
             {
                 m_left_top_corner = left_top;
                 m_right_bottom_corner = right_bottom;
             }
 
             // negative left value means expand forward left, positive right value means expand forward right
-            void horizontal_expand(int left, int right) noexcept
+            template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T> && std::is_convertible_v<T, CoordinateType>>>
+            void horizontal_expand(T left, T right) noexcept
             {
                 m_left_top_corner.horizontal_move(left);
                 m_right_bottom_corner.horizontal_move(right);
             }
 
             // negative top value means expand forward top, positive bottom value means expand forward bottom
-            void vertical_expand(int top, int bottom) noexcept
+            template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T> && std::is_convertible_v<T, CoordinateType>>>
+            void vertical_expand(T top, T bottom) noexcept
             {
                 m_left_top_corner.vertical_move(top);
                 m_right_bottom_corner.vertical_move(bottom);
             }
 
-            void move_rect(int horizontal, int vertical) noexcept
+            template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T> && std::is_convertible_v<T, CoordinateType>>>
+            void move_rect(T horizontal, T vertical) noexcept
             {
                 m_left_top_corner.move_to(horizontal, vertical);
                 m_right_bottom_corner.move_to(horizontal, vertical);
             }
 
-            [[nodiscard]] bool is_in_rect(int x, int y) const noexcept
+            template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T> && std::is_convertible_v<T, CoordinateType>>>
+            [[nodiscard]] bool is_in_rect(T x, T y) const noexcept
             {
                 return !m_left_top_corner.greater_than(x, y) && m_right_bottom_corner.greater_equal(x, y);
             }
 
-            [[nodiscard]] bool is_in_rect(const CorePoint& point) const noexcept
+            template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T> && std::is_convertible_v<T, CoordinateType>>>
+            [[nodiscard]] bool is_in_rect(const CorePoint<T>& point) const noexcept
             {
                 return point >= m_left_top_corner && point <= m_right_bottom_corner;
             }
 
-            [[nodiscard]] bool is_in_rect(const CoreRect& rect) const noexcept
+            template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T> && std::is_convertible_v<T, CoordinateType>>>
+            [[nodiscard]] bool is_in_rect(const CoreRect<T>& rect) const noexcept
             {
                 return is_in_rect(rect.m_left_top_corner) && is_in_rect(rect.m_right_bottom_corner);
             }
 
-            [[nodiscard]] int distance_of_left(int x) const noexcept
+            template <typename T, typename RetType = std::common_type_t<T, CoordinateType>, typename = std::enable_if_t<std::is_arithmetic_v<T> && std::is_convertible_v<T, CoordinateType>>>
+            [[nodiscard]] RetType distance_of_left(T x) const noexcept
             {
                 return m_left_top_corner.horizontal_distance(x);
             }
 
-            [[nodiscard]] int distance_of_top(int y) const noexcept
+            template <typename T, typename RetType = std::common_type_t<T, CoordinateType>, typename = std::enable_if_t<std::is_arithmetic_v<T> && std::is_convertible_v<T, CoordinateType>>>
+            [[nodiscard]] RetType distance_of_top(T y) const noexcept
             {
                 return m_left_top_corner.vertical_distance(y);
             }
 
-            bool operator==(const CoreRect &other) const noexcept
+            template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T> && std::is_convertible_v<T, CoordinateType>>>
+            bool operator==(const CoreRect<T> &other) const noexcept
             {
                 return m_left_top_corner == other.m_left_top_corner && m_right_bottom_corner == other.m_right_bottom_corner;
             }
 
-            [[nodiscard]] int get_width() const noexcept{
+            [[nodiscard]] CoordinateType get_width() const noexcept{
                 return m_right_bottom_corner.horizontal_distance(m_left_top_corner);
             }
 
-            [[nodiscard]] int get_height() const noexcept{
+            [[nodiscard]] CoordinateType get_height() const noexcept{
                 return m_right_bottom_corner.vertical_distance(m_left_top_corner);
             }
 
-            CorePoint m_left_top_corner;
-            CorePoint m_right_bottom_corner;
+            [[nodiscard]] CoordinateType& left() noexcept
+            {
+                return m_left_top_corner.m_x;
+            }
+
+            [[nodiscard]] CoordinateType& left() const noexcept
+            {
+                return m_left_top_corner.m_x;
+            }
+
+            [[nodiscard]] CoordinateType& top() noexcept
+            {
+                return m_left_top_corner.m_y;
+            }
+
+            [[nodiscard]] CoordinateType& top() const noexcept
+            {
+                return m_left_top_corner.m_y;
+            }
+
+            [[nodiscard]] CoordinateType& right() noexcept
+            {
+                return m_right_bottom_corner.m_x;
+            }
+
+            [[nodiscard]] CoordinateType& right() const noexcept
+            {
+                return m_right_bottom_corner.m_x;
+            }
+
+            [[nodiscard]] CoordinateType& bottom() noexcept
+            {
+                return m_right_bottom_corner.m_y;
+            }
+
+            [[nodiscard]] CoordinateType& bottom() const noexcept
+            {
+                return m_right_bottom_corner.m_y;
+            }
+
+            CorePoint<CoordinateType> m_left_top_corner;
+            CorePoint<CoordinateType> m_right_bottom_corner;
         };
 
     }
@@ -598,8 +693,8 @@ namespace Gal {
             };
             enum class BITMAP_TYPE {
                 CUSTOM0 = 0,
-                CUSTOM1 = 0,
-                CUSTOM2 = 0,
+                CUSTOM1,
+                CUSTOM2,
                 BITMAP_MAX
             };
             enum class COLOR_TYPE {
@@ -683,7 +778,7 @@ namespace Gal {
                 return s_color_map[static_cast<std::size_t>(index)];
             }
 
-        private:
+//        private:
             static std::array<const font_info *, static_cast<std::size_t>(FONT_TYPE::MAX)> s_font_map;
             static std::array<const bitmap_info *, static_cast<std::size_t>(BITMAP_TYPE::BITMAP_MAX)> s_bitmap_map;
             static std::array<ColorType, static_cast<std::size_t>(COLOR_TYPE::MAX)> s_color_map;
@@ -707,9 +802,13 @@ namespace Gal {
 
             using FramebufferType = std::variant<B16ColorByteType *, B32ColorByteType *, std::nullptr_t>;
 
+            using PixelPositionType = int;
+            using SurfaceSizeType = int;
+
+            template<typename T = PixelPositionType>
             struct external_gfx_operator {
-                std::function<void(CorePoint, ColorType)> draw_pixel;
-                std::function<void(CorePoint, CorePoint, ColorType)> fill_rect;
+                std::function<void(CorePoint<T>, ColorType)> draw_pixel;
+                std::function<void(CorePoint<T>, CorePoint<T>, ColorType)> fill_rect;
             };
 
             class CoreDisplay {
@@ -720,53 +819,53 @@ namespace Gal {
                 //multiple surface or surface_no_fb
                 CoreDisplay(
                         FramebufferType physical_framebuffer,
-                        int display_width,
-                        int display_height,
+                        SurfaceSizeType display_width,
+                        SurfaceSizeType display_height,
                         COLOR_BYTE_TYPE color_bytes,
-                        int surface_width,
-                        int surface_height,
-                        int surface_count,
-                        external_gfx_operator *gfx_operator = nullptr);
+                        SurfaceSizeType surface_width,
+                        SurfaceSizeType surface_height,
+                        size_t surface_count,
+                        external_gfx_operator<PixelPositionType> *gfx_operator = nullptr);
 
                 //single custom surface
                 CoreDisplay(
                         FramebufferType physical_framebuffer,
-                        int display_width,
-                        int display_height,
+                        SurfaceSizeType display_width,
+                        SurfaceSizeType display_height,
                         CoreSurface *surface);
 
                 //for multiple surfaces
                 CoreSurface *alloc_surface(
                         Z_ORDER_LEVEL max_z_order,
-                        CoreRect layer_rect = CoreRect()) {
+                        CoreRect<PixelPositionType> layer_rect = CoreRect<PixelPositionType>()) {
                     GalAssert(max_z_order < MAX && m_surface_index < m_surface_count);
                     GalAssert(!std::holds_alternative<std::nullptr_t>(m_physical_framebuffer));
 
                     COLOR_BYTE_TYPE bytes = std::holds_alternative<B16ColorByteType *>(m_physical_framebuffer) ? COLOR_BYTE_TYPE::BITS_16 : COLOR_BYTE_TYPE::BITS_32;
 
-                    (layer_rect == CoreRect())
+                    (layer_rect == CoreRect<PixelPositionType>())
                             ? m_surface_group[m_surface_index]->set_surface(max_z_order, CoreRect(0, 0, m_width - 1, m_height - 1), bytes)
                             : m_surface_group[m_surface_index]->set_surface(max_z_order, layer_rect, bytes);
 
                     return m_surface_group[m_surface_index++];
                 }
 
-                bool swipe_surface(CoreSurface* surface1, CoreSurface* surface2, CorePoint left_top, CorePoint right_bottom, int offset);
+                bool swipe_surface(CoreSurface* surface1, CoreSurface* surface2, CorePoint<PixelPositionType> left_top, CorePoint<PixelPositionType> right_bottom, PixelPositionType offset);
 
-                bool swipe_surface(CoreSurface* surface1, CoreSurface* surface2, const CoreRect& rect, int offset)
+                bool swipe_surface(CoreSurface* surface1, CoreSurface* surface2, const CoreRect<PixelPositionType>& rect, PixelPositionType offset)
                 {
                     return swipe_surface(surface1, surface2, rect.m_left_top_corner, rect.m_right_bottom_corner, offset);
                 }
 
-                [[nodiscard]] int get_width() const noexcept {
+                [[nodiscard]] SurfaceSizeType get_width() const noexcept {
                     return m_width;
                 }
 
-                [[nodiscard]] int get_height() const noexcept {
+                [[nodiscard]] SurfaceSizeType get_height() const noexcept {
                     return m_height;
                 }
 
-                FramebufferType get_updated_framebuffer(int *width, int *height, bool force_update = false) {
+                FramebufferType get_updated_framebuffer(SurfaceSizeType *width, SurfaceSizeType *height, bool force_update = false) {
                     if (width && height) {
                         *width = get_width();
                         *height = get_height();
@@ -805,30 +904,30 @@ namespace Gal {
                 }
 
             private:
-                int m_width; //in pixels
-                int m_height;//in pixels
+                SurfaceSizeType m_width; //in pixels
+                SurfaceSizeType m_height;//in pixels
                 FramebufferType m_physical_framebuffer;
-                int m_physical_read_index;
-                int m_physical_write_index;
+                size_t m_physical_read_index;
+                size_t m_physical_write_index;
                 std::array<CoreSurface *, SurfaceCountMax> m_surface_group;
-                int m_surface_count;
-                int m_surface_index;
+                size_t m_surface_count;
+                size_t m_surface_index;
             };
 
             class CoreLayer {
             public:
-                CoreLayer() : framebuffer(nullptr), rect(CoreRect()){};
+                CoreLayer() : framebuffer(nullptr), rect(CoreRect<PixelPositionType>()){};
                 FramebufferType framebuffer;
-                CoreRect rect;//framebuffer area
+                CoreRect<PixelPositionType> rect;//framebuffer area
             };
 
         public:
             CoreSurface(
-                    int width,
-                    int height,
+                    SurfaceSizeType width,
+                    SurfaceSizeType height,
                     COLOR_BYTE_TYPE color_bytes,
                     Z_ORDER_LEVEL max_z_order = Z_ORDER_LEVEL::LOWEST,
-                    CoreRect overlapped_rect = CoreRect())
+                    CoreRect<PixelPositionType> overlapped_rect = CoreRect<PixelPositionType>())
                 : m_width(width),
                   m_height(height),
                   m_is_active(false),
@@ -838,20 +937,20 @@ namespace Gal {
                   m_physical_framebuffer(nullptr),
                   m_physical_write_index(nullptr),
                   m_display(nullptr) {
-                (overlapped_rect == CoreRect())
+                (overlapped_rect == CoreRect<PixelPositionType>())
                         ? set_surface(max_z_order, CoreRect(0, 0, width - 1, height - 1), color_bytes)
                         : set_surface(max_z_order, overlapped_rect, color_bytes);
             }
 
-            [[nodiscard]] int get_width() const noexcept {
+            [[nodiscard]] SurfaceSizeType get_width() const noexcept {
                 return m_width;
             }
 
-            [[nodiscard]] int get_height() const noexcept {
+            [[nodiscard]] SurfaceSizeType get_height() const noexcept {
                 return m_height;
             }
 
-            [[nodiscard]] ColorType get_pixel(const CorePoint& point, Z_ORDER_LEVEL z_order) const {
+            [[nodiscard]] ColorType get_pixel(const CorePoint<PixelPositionType>& point, Z_ORDER_LEVEL z_order) const {
                 if(!point.horizontal_between(0, m_width) || !point.vertical_between(0, m_height) || z_order >= Z_ORDER_LEVEL::MAX)
                 {
                     GalAssert(false);
@@ -869,7 +968,7 @@ namespace Gal {
                 return static_cast<ColorType>(-1);
             }
 
-            virtual void draw_pixel(const CorePoint& point, ColorType rgb, Z_ORDER_LEVEL z_order) {
+            virtual void draw_pixel(CorePoint<PixelPositionType> point, ColorType rgb, Z_ORDER_LEVEL z_order) {
                 if (!point.horizontal_between(0, m_width) || !point.vertical_between(0, m_height)) {
                     return;
                 }
@@ -908,7 +1007,7 @@ namespace Gal {
                 }
             }
 
-            virtual void fill_rect(CorePoint left_top, CorePoint right_bottom, ColorType rgb, Z_ORDER_LEVEL z_order) {
+            virtual void fill_rect(CorePoint<PixelPositionType> left_top, CorePoint<PixelPositionType> right_bottom, ColorType rgb, Z_ORDER_LEVEL z_order) {
                 left_top.clamp_point_lower(0, 0);
                 right_bottom.clamp_point_upper(m_width, m_height);
 
@@ -934,19 +1033,19 @@ namespace Gal {
                 }
             }
 
-            void draw_horizontal_line(int x0, int x1, int y, ColorType rgb, Z_ORDER_LEVEL z_order) {
+            void draw_horizontal_line(PixelPositionType x0, PixelPositionType x1, PixelPositionType y, ColorType rgb, Z_ORDER_LEVEL z_order) {
                 for (; x0 <= x1; ++x0) {
                     draw_pixel({x0, y}, rgb, z_order);
                 }
             }
 
-            void draw_vertical_line(int x, int y0, int y1, ColorType rgb, Z_ORDER_LEVEL z_order) {
+            void draw_vertical_line(PixelPositionType x, PixelPositionType y0, PixelPositionType y1, ColorType rgb, Z_ORDER_LEVEL z_order) {
                 for (; y0 <= y1; ++y0) {
                     draw_pixel({x, y0}, rgb, z_order);
                 }
             }
 
-            void draw_line(CorePoint left_top, CorePoint right_bottom, ColorType rgb, Z_ORDER_LEVEL z_order) {
+            void draw_line(CorePoint<PixelPositionType> left_top, CorePoint<PixelPositionType> right_bottom, ColorType rgb, Z_ORDER_LEVEL z_order) {
                 auto [x0, y0] = left_top;
                 auto [x1, y1] = right_bottom;
 
@@ -985,7 +1084,7 @@ namespace Gal {
                 }
             }
 
-            void draw_rect(CorePoint left_top, CorePoint right_bottom, ColorType rgb, Z_ORDER_LEVEL z_order, unsigned int scale = 1) {
+            void draw_rect(CorePoint<PixelPositionType> left_top, CorePoint<PixelPositionType> right_bottom, ColorType rgb, Z_ORDER_LEVEL z_order, unsigned int scale = 1) {
                 auto [x0, y0] = left_top;
                 auto [x1, y1] = right_bottom;
                 for (auto offset = 0; offset < scale; ++offset) {
@@ -996,20 +1095,20 @@ namespace Gal {
                 }
             }
 
-            void draw_rect(CoreRect rect, ColorType rgb, Z_ORDER_LEVEL z_order, unsigned int scale) {
+            void draw_rect(CoreRect<PixelPositionType> rect, ColorType rgb, Z_ORDER_LEVEL z_order, unsigned int scale) {
                 draw_rect(rect.m_left_top_corner, rect.m_right_bottom_corner, rgb, z_order, scale);
             }
 
-            void fill_rect(CoreRect rect, ColorType rgb, Z_ORDER_LEVEL z_order) {
+            void fill_rect(CoreRect<PixelPositionType> rect, ColorType rgb, Z_ORDER_LEVEL z_order) {
                 fill_rect(rect.m_left_top_corner, rect.m_right_bottom_corner, rgb, z_order);
             }
 
-            bool flush_screen(const CoreRect& rect)
+            bool flush_screen(CoreRect<PixelPositionType> rect)
             {
                 return flush_screen(rect.m_left_top_corner, rect.m_right_bottom_corner);
             }
 
-            bool flush_screen(CorePoint left_top, CorePoint right_bottom) {
+            bool flush_screen(CorePoint<PixelPositionType> left_top, CorePoint<PixelPositionType> right_bottom) {
                 if(!left_top.horizontal_between(0, m_width) || !right_bottom.horizontal_between(0, m_width) ||
                     !left_top.vertical_between(0, m_height) || !right_bottom.vertical_between(0, m_height))
                 {
@@ -1061,7 +1160,7 @@ namespace Gal {
                 return m_display;
             }
 
-            void show_layer(const CoreRect &rect, CoreSurface::Z_ORDER_LEVEL z_order) {
+            void show_layer(CoreRect<PixelPositionType> rect, CoreSurface::Z_ORDER_LEVEL z_order) {
                 GalAssert(z_order >= LOWEST && z_order < MAX);
                 auto layer = m_layers[static_cast<size_t>(z_order)];
                 auto layer_rect = layer.rect;
@@ -1069,9 +1168,8 @@ namespace Gal {
                 auto buffer = layer.framebuffer;
                 auto width = layer_rect.get_width();
 
-                auto [left_top, right_bottom] = rect;
-                for (auto y = left_top.m_y; y <= right_bottom.m_y; ++y) {
-                    for (auto x = left_top.m_x; x <= right_bottom.m_x; ++x) {
+                for (auto y = rect.top(); y <= rect.bottom(); ++y) {
+                    for (auto x = rect.left(); x <= rect.right(); ++x) {
                         auto index = layer_rect.distance_of_left(x) + layer_rect.distance_of_top(y) * width;
                         draw_pixel_on_framebuffer({x, y}, get_rgb_from_buffer(buffer, index));
                     }
@@ -1079,7 +1177,7 @@ namespace Gal {
             }
 
         protected:
-            virtual void draw_pixel_on_framebuffer(CorePoint point, ColorType rgb) {
+            virtual void draw_pixel_on_framebuffer(CorePoint<PixelPositionType> point, ColorType rgb) {
                 if (!std::holds_alternative<std::nullptr_t>(m_framebuffer)) {
                     write_rgb_to_buffer(m_framebuffer, point.m_y * m_width + point.m_x, rgb);
                 }
@@ -1088,7 +1186,7 @@ namespace Gal {
                 }
                 ++*m_physical_write_index;
             }
-            virtual void fill_rect_on_framebuffer(CorePoint left_top, CorePoint right_bottom, ColorType rgb) {
+            virtual void fill_rect_on_framebuffer(CorePoint<PixelPositionType> left_top, CorePoint<PixelPositionType> right_bottom, ColorType rgb) {
                 auto display_width = m_display->get_width();
                 auto display_height = m_display->get_height();
 
@@ -1160,7 +1258,7 @@ namespace Gal {
                 m_physical_write_index = &display->m_physical_write_index;
             }
 
-            void set_surface(Z_ORDER_LEVEL max_z_order, CoreRect layer_rect, COLOR_BYTE_TYPE bytes) {
+            void set_surface(Z_ORDER_LEVEL max_z_order, CoreRect<PixelPositionType> layer_rect, COLOR_BYTE_TYPE bytes) {
                 m_max_z_order = max_z_order;
 
                 auto malloc_buffer = [&](FramebufferType buffer) -> void * {
@@ -1184,19 +1282,19 @@ namespace Gal {
                 }
             }
 
-            int m_width;
-            int m_height;
+            SurfaceSizeType m_width;
+            SurfaceSizeType m_height;
             FramebufferType m_framebuffer;
             std::array<CoreLayer, static_cast<size_t>(Z_ORDER_LEVEL::MAX)> m_layers;
             bool m_is_active;
             Z_ORDER_LEVEL m_max_z_order;
             Z_ORDER_LEVEL m_top_z_order;
             FramebufferType m_physical_framebuffer;
-            int *m_physical_write_index;
+            size_t *m_physical_write_index;
             CoreDisplay *m_display;
 
         public:
-            static void write_rgb_to_buffer(FramebufferType &buffer, unsigned int index, ColorType rgb) {
+            static void write_rgb_to_buffer(FramebufferType &buffer, size_t index, ColorType rgb) {
                 std::visit(utility::overloaded{
                                    [&](B16ColorByteType *data) { data[index] = utility::rgb_convert_32_to_16(rgb); },
                                    [&](B32ColorByteType *data) { data[index] = rgb; },
@@ -1204,7 +1302,7 @@ namespace Gal {
                            buffer);
             }
 
-            [[nodiscard]] static ColorType get_rgb_from_buffer(const FramebufferType &buffer, unsigned int index) {
+            [[nodiscard]] static ColorType get_rgb_from_buffer(const FramebufferType &buffer, size_t index) {
                 auto ret = static_cast<ColorType>(-1);
                 std::visit(utility::overloaded{
                                    [&](const B16ColorByteType *data) { ret = utility::rgb_convert_16_to_32(data[index]); },
@@ -1220,20 +1318,20 @@ namespace Gal {
             //No physical framebuffer, render with external graphic interface
         public:
             CoreSurfaceNoFramebuffer(
-                    int width,
-                    int height,
+                    SurfaceSizeType width,
+                    SurfaceSizeType height,
                     COLOR_BYTE_TYPE color_bytes,
-                    CoreSurface::external_gfx_operator *gfx_operator,
+                    CoreSurface::external_gfx_operator<PixelPositionType> *gfx_operator,
                     CoreSurface::Z_ORDER_LEVEL max_z_order = CoreSurface::Z_ORDER_LEVEL::LOWEST,
-                    CoreRect overlapped_rect = CoreRect())
+                    CoreRect<PixelPositionType> overlapped_rect = CoreRect<PixelPositionType>())
                 : CoreSurface(width, height, color_bytes, max_z_order, overlapped_rect), m_gfx_operator(gfx_operator){};
 
-            [[nodiscard]] CoreSurface::external_gfx_operator *get_gfx_operator() const {
+            [[nodiscard]] CoreSurface::external_gfx_operator<PixelPositionType> *get_gfx_operator() const {
                 return m_gfx_operator;
             }
 
         protected:
-            void draw_pixel_on_framebuffer(CorePoint point, ColorType rgb) override {
+            void draw_pixel_on_framebuffer(CorePoint<PixelPositionType> point, ColorType rgb) override {
                 if (m_gfx_operator && m_gfx_operator->draw_pixel && m_is_active) {
                     m_gfx_operator->draw_pixel(point, rgb);
                 }
@@ -1241,7 +1339,7 @@ namespace Gal {
                 write_rgb_to_buffer(m_framebuffer, point.m_y * m_width + point.m_x, rgb);
             }
 
-            void fill_rect_on_framebuffer(CorePoint left_top, CorePoint right_bottom, ColorType rgb) override {
+            void fill_rect_on_framebuffer(CorePoint<PixelPositionType> left_top, CorePoint<PixelPositionType> right_bottom, ColorType rgb) override {
                 if (!m_gfx_operator) { return; }
 
                 if (auto &filler = m_gfx_operator->fill_rect; filler) {
@@ -1290,18 +1388,18 @@ namespace Gal {
             }
 
             //Rendering by external method
-            CoreSurface::external_gfx_operator *m_gfx_operator;
+            CoreSurface::external_gfx_operator<PixelPositionType> *m_gfx_operator;
         };
 
         CoreSurface::CoreDisplay::CoreDisplay(
                 FramebufferType physical_framebuffer,
-                int display_width,
-                int display_height,
+                SurfaceSizeType display_width,
+                SurfaceSizeType display_height,
                 COLOR_BYTE_TYPE color_bytes,
-                int surface_width,
-                int surface_height,
-                int surface_count,
-                external_gfx_operator *gfx_operator)
+                SurfaceSizeType surface_width,
+                SurfaceSizeType surface_height,
+                size_t surface_count,
+                external_gfx_operator<PixelPositionType> *gfx_operator)
             : m_width(display_width),
               m_height(display_height),
               m_physical_framebuffer(physical_framebuffer),
@@ -1324,8 +1422,8 @@ namespace Gal {
 
         CoreSurface::CoreDisplay::CoreDisplay(
                 FramebufferType physical_framebuffer,
-                int display_width,
-                int display_height,
+                SurfaceSizeType display_width,
+                SurfaceSizeType display_height,
                 CoreSurface *surface)
             : m_width(display_width),
               m_height(display_height),
@@ -1340,7 +1438,7 @@ namespace Gal {
             m_surface_group[0]->attach_display(this);
         }
 
-        bool CoreSurface::CoreDisplay::swipe_surface(CoreSurface *surface1, CoreSurface *surface2, CorePoint left_top, CorePoint right_bottom, int offset)
+        bool CoreSurface::CoreDisplay::swipe_surface(CoreSurface *surface1, CoreSurface *surface2, CorePoint<PixelPositionType> left_top, CorePoint<PixelPositionType> right_bottom, PixelPositionType offset)
         {
             auto surface_width = surface1->get_width();
             auto surface_height = surface1->get_height();
@@ -1438,7 +1536,7 @@ namespace Gal {
                     CoreSurface *surface,
                     CoreSurface::Z_ORDER_LEVEL z_order,
                     const char *str,
-                    CorePoint point,
+                    CorePoint<CoreSurface::PixelPositionType> point,
                     const CoreTheme::font_info *font,
                     ColorType font_color,
                     ColorType background_color,
@@ -1458,7 +1556,7 @@ namespace Gal {
                     CoreSurface *surface,
                     CoreSurface::Z_ORDER_LEVEL z_order,
                     const char *str,
-                    CoreRect rect,
+                    CoreRect<CoreSurface::PixelPositionType> rect,
                     const CoreTheme::font_info *font,
                     ColorType font_color,
                     ColorType background_color,
@@ -1476,7 +1574,7 @@ namespace Gal {
                     CoreSurface::Z_ORDER_LEVEL z_order,
                     int value,
                     int dot_position,
-                    CorePoint point,
+                    CorePoint<CoreSurface::PixelPositionType> point,
                     const CoreTheme::font_info *font,
                     ColorType font_color,
                     ColorType background_color,
@@ -1491,7 +1589,7 @@ namespace Gal {
                     CoreSurface::Z_ORDER_LEVEL z_order,
                     int value,
                     int dot_position,
-                    CoreRect rect,
+                    CoreRect<CoreSurface::PixelPositionType> rect,
                     const CoreTheme::font_info *font,
                     ColorType font_color,
                     ColorType background_color,
@@ -1522,7 +1620,7 @@ namespace Gal {
                 }
             }
 
-            static std::pair<int, int> get_str_size(const char *str, const CoreTheme::font_info *font) {
+            static std::pair<CoreSurface::PixelPositionType, CoreSurface::PixelPositionType> get_str_size(const char *str, const CoreTheme::font_info *font) {
                 if (str == nullptr || font == nullptr) {
                     return std::make_pair(0, 0);
                 }
@@ -1542,7 +1640,7 @@ namespace Gal {
                     CoreSurface *surface,
                     CoreSurface::Z_ORDER_LEVEL z_order,
                     unsigned int utf8_code,
-                    CorePoint point,
+                    CorePoint<CoreSurface::PixelPositionType> point,
                     const CoreTheme::font_info *font,
                     ColorType font_color,
                     ColorType background_color) {
@@ -1562,7 +1660,7 @@ namespace Gal {
                 for (auto _y = 0; _y < length; ++_y) {
                     for (auto _x = 0; _x < length; ++_x) {
                         auto diff = (_x - _y);
-                        int sum = (_x + _y);
+                        auto sum = (_x + _y);
                         if (utility::abs(diff) <= 1 || utility::abs(sum - length) <= 1) {
                             surface->draw_pixel({x + _x, y + _y}, error_color, z_order);
                         } else {
@@ -1577,7 +1675,7 @@ namespace Gal {
             static void draw_lattice(
                     CoreSurface *surface,
                     CoreSurface::Z_ORDER_LEVEL z_order,
-                    CorePoint point,
+                    CorePoint<CoreSurface::PixelPositionType> point,
                     int width, int height,
                     const unsigned char *data,
                     ColorType font_color,
@@ -1638,7 +1736,7 @@ namespace Gal {
                 return nullptr;
             }
 
-            static std::pair<int, int> get_string_position(const char *str, const CoreTheme::font_info *font, CoreRect rect, ALIGN_TYPE align_type) {
+            static std::pair<CoreSurface::PixelPositionType, CoreSurface::PixelPositionType> get_string_position(const char *str, const CoreTheme::font_info *font, CoreRect<CoreSurface::PixelPositionType> rect, ALIGN_TYPE align_type) {
                 auto [x_size, y_size] = get_str_size(str, font);
                 auto width = rect.get_width();
                 auto height = rect.get_height();
@@ -1703,7 +1801,8 @@ namespace Gal {
                                 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
                                 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
                                 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
-                                4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 1, 1};
+                                4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 1, 1
+                        };
                 auto p = reinterpret_cast<unsigned char *>(const_cast<char *>(str));
                 auto utf8_bytes = s_utf8_length_table[*p];
                 switch (utf8_bytes) {
@@ -1733,7 +1832,7 @@ namespace Gal {
                     CoreSurface *surface,
                     CoreSurface::Z_ORDER_LEVEL z_order,
                     const CoreTheme::bitmap_info *bitmap,
-                    int x, int y,
+                    CorePoint<CoreSurface::PixelPositionType> point,
                     ColorType mask_rgb = DefaultColorMask) {
                 GalAssert(bitmap);
                 GalAssert(z_order >= CoreSurface::Z_ORDER_LEVEL::MIDDLE);
@@ -1745,6 +1844,7 @@ namespace Gal {
                 auto mask_rgb_16 = utility::rgb_convert_32_to_16(mask_rgb);
                 auto data = bitmap->pixel_color_array;
 
+                auto [x, y] = point;
                 for (auto _y = y, offset = 0; _y < y + bitmap->height; ++_y) {
                     for (auto _x = x; _x < x + bitmap->width; ++_x, ++offset) {
                         auto rgb = *(data + offset);
@@ -1765,9 +1865,9 @@ namespace Gal {
                     CoreSurface *surface,
                     CoreSurface::Z_ORDER_LEVEL z_order,
                     const CoreTheme::bitmap_info *bitmap,
-                    CorePoint point,
-                    CorePoint source_point,
-                    int width, int height,
+                    CorePoint<CoreSurface::PixelPositionType> point,
+                    CorePoint<CoreSurface::PixelPositionType> source_point,
+                    CoreSurface::SurfaceSizeType width, CoreSurface::SurfaceSizeType height,
                     ColorType mask_rgb = DefaultColorMask) {
                 auto [source_x, source_y] = source_point;
                 if (bitmap == nullptr || (source_x + width > bitmap->width) || (source_y + height > bitmap->height)) { return; }
@@ -1843,7 +1943,7 @@ namespace Gal {
             using IdType = unsigned short;
             constexpr static IdType s_id_not_used = IdType();
 
-//            template<typename Enum, typename = std::enable_if<std::is_enum_v<Enum>>>
+//            template<typename Enum, typename = std::enable_if_t<std::is_enum_v<Enum>>>
 //            using WindowCallback = std::function<void(IdType, Enum)>;
             // to-do, wrap it
             using WindowCallback = void(CoreWindow::*)(IdType, const std::any&);
@@ -1852,9 +1952,9 @@ namespace Gal {
                 CoreWindow *window;//window instance
                 IdType resource_id;//ID
                 const char *str;   //caption
-                CorePoint point;//position x && y
-                int width;
-                int height;
+                CorePoint<CoreSurface::PixelPositionType> point;//position x && y
+                CoreSurface::SurfaceSizeType width;
+                CoreSurface::SurfaceSizeType height;
                 window_tree *child_tree;//sub tree
             };
 
@@ -1881,8 +1981,8 @@ namespace Gal {
                     CoreWindow *parent,
                     IdType resource_id,
                     const char *str,
-                    CorePoint point,
-                    int width, int height,
+                    CorePoint<CoreSurface::PixelPositionType> point,
+                    CoreSurface::SurfaceSizeType width, CoreSurface::SurfaceSizeType height,
                     window_tree *child_tree) {
                 if (resource_id == s_id_not_used) {
                     GalAssert(false);
@@ -1901,8 +2001,7 @@ namespace Gal {
                     return CONNECT_STATE::INVALID_USER;
                 }
                 /* (cs.x = x * 1024 / 768) for 1027*768=>800*600 quickly*/
-                auto [x, y] = point;
-                m_window_rect.set_rect(x, y, width, height);
+                m_window_rect.set_rect(point.m_x, point.m_y, width, height);
                 pre_create_window();
                 if (parent != nullptr) {
                     parent->add_child_to_tail(this);
@@ -1982,13 +2081,13 @@ namespace Gal {
 
             [[nodiscard]] const CoreTheme::font_info *get_font_type() const { return m_font_type; }
 
-            void set_window_position(int x, int y, int width, int height) {
+            void set_window_position(CoreSurface::PixelPositionType x, CoreSurface::PixelPositionType y, CoreSurface::PixelPositionType width, CoreSurface::PixelPositionType height) {
                 m_window_rect.set_rect(x, y, width, height);
             }
 
-            [[nodiscard]] CoreRect get_window_rect() const { return m_window_rect; }
+            [[nodiscard]] CoreRect<CoreSurface::PixelPositionType> get_window_rect() const { return m_window_rect; }
 
-            [[nodiscard]] CoreRect get_screen_rect() const {
+            [[nodiscard]] CoreRect<CoreSurface::PixelPositionType> get_screen_rect() const {
                 auto [left, top] = window_to_screen();
                 return {left, top, m_window_rect.get_width(), m_window_rect.get_height()};
             }
@@ -2064,7 +2163,7 @@ namespace Gal {
 
             [[nodiscard]] CoreWindow *get_next_sibling() const { return m_next_sibling; }
 
-            virtual void on_touch(CorePoint point, TOUCH_ACTION action) {
+            virtual void on_touch(CorePoint<CoreSurface::PixelPositionType> point, TOUCH_ACTION action) {
                 auto [x, y] = point;
                 x = m_window_rect.distance_of_left(x);
                 y = m_window_rect.distance_of_top(y);
@@ -2173,7 +2272,7 @@ namespace Gal {
                 }
             }
 
-            [[nodiscard]] std::pair<int, int> window_to_screen() const {
+            [[nodiscard]] std::pair<CoreSurface::PixelPositionType, CoreSurface::PixelPositionType> window_to_screen() const {
                 auto parent = m_parent;
                 auto point = m_window_rect.m_left_top_corner;
                 while (parent != nullptr) {
@@ -2211,7 +2310,7 @@ namespace Gal {
             IdType m_id;
             WINDOW_STATE m_state;
             WINDOW_ATTRIBUTION m_attribution;
-            CoreRect m_window_rect;    //position relative to parent window
+            CoreRect<CoreSurface::PixelPositionType> m_window_rect;    //position relative to parent window
             CoreWindow *m_parent;      //parent window
             CoreWindow *m_top_child;   //the first sub window would be navigated
             CoreWindow *m_prev_sibling;//previous brother
@@ -2240,7 +2339,7 @@ namespace Gal {
                             str, rect,
                             font_type, font_color,
                             background_color,
-                            static_cast<CoreWord::ALIGN_TYPE>(CoreWord::ALIGN_TYPE::HORIZONTAL_CENTER | CoreWord::ALIGN_TYPE::VERTICAL_CENTER));
+                            CoreWord::ALIGN_TYPE::HORIZONTAL_CENTER | CoreWord::ALIGN_TYPE::VERTICAL_CENTER);
                 };
 
                 switch (m_state) {
@@ -2287,12 +2386,12 @@ namespace Gal {
 
             void pre_create_window() override {
                 m_on_click = nullptr;
-                m_attribution = static_cast<WINDOW_ATTRIBUTION>(WINDOW_ATTRIBUTION::VISIBLE | WINDOW_ATTRIBUTION::FOCUS);
+                m_attribution = WINDOW_ATTRIBUTION::VISIBLE | WINDOW_ATTRIBUTION::FOCUS;
                 m_font_type = CoreTheme::get_font(CoreTheme::FONT_TYPE::DEFAULT);
                 m_font_color = CoreTheme::get_color(CoreTheme::COLOR_TYPE::WND_FONT);
             }
 
-            void on_touch(CorePoint point, TOUCH_ACTION action) override {
+            void on_touch(CorePoint<CoreSurface::PixelPositionType> point, TOUCH_ACTION action) override {
                 if (action == CoreWindow::TOUCH_ACTION::DOWN) {
                     m_parent->set_child_focus(this);
                     m_state = CoreWindow::WINDOW_STATE::PUSHED;
@@ -2761,66 +2860,66 @@ namespace Gal {
             }
         };
 
-        CoreWindow::window_tree CoreKeyboard::s_keyboard_tree[] = /* NOLINT */
-        {
-                //Row 1
-                {&CoreKeyboard::s_key_q, 'Q', nullptr, {utility::get_x_in_keyboard(0), utility::get_y_in_keyboard(0)}, KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_w, 'W', nullptr, {utility::get_x_in_keyboard(1), utility::get_y_in_keyboard(0)}, KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_e, 'E', nullptr, {utility::get_x_in_keyboard(2), utility::get_y_in_keyboard(0)}, KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_r, 'R', nullptr, {utility::get_x_in_keyboard(3), utility::get_y_in_keyboard(0)}, KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_t, 'T', nullptr, {utility::get_x_in_keyboard(4), utility::get_y_in_keyboard(0)}, KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_y, 'Y', nullptr, {utility::get_x_in_keyboard(5), utility::get_y_in_keyboard(0)}, KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_u, 'U', nullptr, {utility::get_x_in_keyboard(6), utility::get_y_in_keyboard(0)}, KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_i, 'I', nullptr, {utility::get_x_in_keyboard(7), utility::get_y_in_keyboard(0)}, KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_o, 'O', nullptr, {utility::get_x_in_keyboard(8), utility::get_y_in_keyboard(0)}, KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_p, 'P', nullptr, {utility::get_x_in_keyboard(9), utility::get_y_in_keyboard(0)}, KeyWidth, KeyHeight},
-                //Row 2
-                {&CoreKeyboard::s_key_a, 'A', nullptr, {utility::get_x_in_keyboard(0) + (KeyWidth / 2), utility::get_y_in_keyboard(1)}, KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_s, 'S', nullptr, {utility::get_x_in_keyboard(1) + (KeyWidth / 2), utility::get_y_in_keyboard(1)}, KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_d, 'D', nullptr, {utility::get_x_in_keyboard(2) + (KeyWidth / 2), utility::get_y_in_keyboard(1)}, KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_f, 'F', nullptr, {utility::get_x_in_keyboard(3) + (KeyWidth / 2), utility::get_y_in_keyboard(1)}, KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_g, 'G', nullptr, {utility::get_x_in_keyboard(4) + (KeyWidth / 2), utility::get_y_in_keyboard(1)}, KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_h, 'H', nullptr, {utility::get_x_in_keyboard(5) + (KeyWidth / 2), utility::get_y_in_keyboard(1)}, KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_j, 'J', nullptr, {utility::get_x_in_keyboard(6) + (KeyWidth / 2), utility::get_y_in_keyboard(1)}, KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_k, 'K', nullptr, {utility::get_x_in_keyboard(7) + (KeyWidth / 2), utility::get_y_in_keyboard(1)}, KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_l, 'L', nullptr, {utility::get_x_in_keyboard(8) + (KeyWidth / 2), utility::get_y_in_keyboard(1)}, KeyWidth, KeyHeight},
-                //Row 3
-                {&CoreKeyboard::s_key_caps, CapsId, nullptr, {utility::get_x_in_keyboard(0), utility::get_y_in_keyboard(2)}, CapsWidth, KeyHeight},
-                {&CoreKeyboard::s_key_z, 'Z', nullptr, {utility::get_x_in_keyboard(1) + (KeyWidth / 2), utility::get_y_in_keyboard(2)}, KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_x, 'X', nullptr, {utility::get_x_in_keyboard(2) + (KeyWidth / 2), utility::get_y_in_keyboard(2)}, KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_c, 'C', nullptr, {utility::get_x_in_keyboard(3) + (KeyWidth / 2), utility::get_y_in_keyboard(2)}, KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_v, 'V', nullptr, {utility::get_x_in_keyboard(4) + (KeyWidth / 2), utility::get_y_in_keyboard(2)}, KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_b, 'B', nullptr, {utility::get_x_in_keyboard(5) + (KeyWidth / 2), utility::get_y_in_keyboard(2)}, KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_n, 'N', nullptr, {utility::get_x_in_keyboard(6) + (KeyWidth / 2), utility::get_y_in_keyboard(2)}, KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_m, 'M', nullptr, {utility::get_x_in_keyboard(7) + (KeyWidth / 2), utility::get_y_in_keyboard(2)}, KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_del, DelId, nullptr, {utility::get_x_in_keyboard(8) + (KeyWidth / 2), utility::get_y_in_keyboard(2)}, DelWidth, KeyHeight},
-                //Row 4
-                {&CoreKeyboard::s_key_esc, EscId, nullptr, {utility::get_x_in_keyboard(0), utility::get_y_in_keyboard(3)}, EscWidth, KeyHeight},
-                {&CoreKeyboard::s_key_num_switch, NumSwitchId, nullptr, {utility::get_x_in_keyboard(2), utility::get_y_in_keyboard(3)}, SwitchWidth, KeyHeight},
-                {&CoreKeyboard::s_key_space, SpaceId, nullptr, {utility::get_x_in_keyboard(3) + (KeyWidth / 2), utility::get_y_in_keyboard(3)}, SpaceWidth, KeyHeight},
-                {&CoreKeyboard::s_key_dot, DotId, nullptr, {utility::get_x_in_keyboard(6) + (KeyWidth / 2), utility::get_y_in_keyboard(3)}, DotWidth, KeyHeight},
-                {&CoreKeyboard::s_key_enter, EnterId, nullptr, {utility::get_x_in_keyboard(8), utility::get_y_in_keyboard(3)}, EnterWidth, KeyHeight},
-                {nullptr, 0, nullptr, {0, 0}, 0, 0}
-        };
-        CoreWindow::window_tree CoreKeyboard::s_numpad_tree[] = /* NOLINT */
-        {
-                {&CoreKeyboard::s_key_1, '1', nullptr, {utility::get_x_in_keyboard(0), utility::get_y_in_keyboard(0)}, KeyWidth, KeyWidth},
-                {&CoreKeyboard::s_key_2, '2', nullptr, {utility::get_x_in_keyboard(1), utility::get_y_in_keyboard(0)}, KeyWidth, KeyWidth},
-                {&CoreKeyboard::s_key_3, '3', nullptr, {utility::get_x_in_keyboard(2), utility::get_y_in_keyboard(0)}, KeyWidth, KeyWidth},
-                {&CoreKeyboard::s_key_4, '4', nullptr, {utility::get_x_in_keyboard(0), utility::get_y_in_keyboard(1)}, KeyWidth, KeyWidth},
-                {&CoreKeyboard::s_key_5, '5', nullptr, {utility::get_x_in_keyboard(1), utility::get_y_in_keyboard(1)}, KeyWidth, KeyWidth},
-                {&CoreKeyboard::s_key_6, '6', nullptr, {utility::get_x_in_keyboard(2), utility::get_y_in_keyboard(1)}, KeyWidth, KeyWidth},
-                {&CoreKeyboard::s_key_7, '7', nullptr, {utility::get_x_in_keyboard(0), utility::get_y_in_keyboard(2)}, KeyWidth, KeyWidth},
-                {&CoreKeyboard::s_key_8, '8', nullptr, {utility::get_x_in_keyboard(1), utility::get_y_in_keyboard(2)}, KeyWidth, KeyWidth},
-                {&CoreKeyboard::s_key_9, '9', nullptr, {utility::get_x_in_keyboard(2), utility::get_y_in_keyboard(2)}, KeyWidth, KeyWidth},
-
-                {&CoreKeyboard::s_key_esc, EscId, nullptr, {utility::get_x_in_keyboard(0), utility::get_y_in_keyboard(3)}, KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_0, '0', nullptr, {utility::get_x_in_keyboard(1), utility::get_y_in_keyboard(3)}, KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_dot, DotId, nullptr, {utility::get_x_in_keyboard(2), utility::get_y_in_keyboard(3)}, KeyWidth, KeyHeight},
-                {&CoreKeyboard::s_key_del, DelId, nullptr, {utility::get_x_in_keyboard(3), utility::get_y_in_keyboard(0)}, KeyWidth, KeyHeight * 2 + 2},
-                {&CoreKeyboard::s_key_enter, EnterId, nullptr, {utility::get_x_in_keyboard(3), utility::get_y_in_keyboard(2)}, KeyWidth, KeyHeight * 2 + 2},
-                {nullptr, 0, nullptr, {0, 0}, 0, 0}
-        };
+//        CoreWindow::window_tree CoreKeyboard::s_keyboard_tree[] = /* NOLINT */
+//        {
+//                //Row 1
+//                {&CoreKeyboard::s_key_q, 'Q', nullptr, {utility::get_x_in_keyboard(0), utility::get_y_in_keyboard(0)}, KeyWidth, KeyHeight},
+//                {&CoreKeyboard::s_key_w, 'W', nullptr, {utility::get_x_in_keyboard(1), utility::get_y_in_keyboard(0)}, KeyWidth, KeyHeight},
+//                {&CoreKeyboard::s_key_e, 'E', nullptr, {utility::get_x_in_keyboard(2), utility::get_y_in_keyboard(0)}, KeyWidth, KeyHeight},
+//                {&CoreKeyboard::s_key_r, 'R', nullptr, {utility::get_x_in_keyboard(3), utility::get_y_in_keyboard(0)}, KeyWidth, KeyHeight},
+//                {&CoreKeyboard::s_key_t, 'T', nullptr, {utility::get_x_in_keyboard(4), utility::get_y_in_keyboard(0)}, KeyWidth, KeyHeight},
+//                {&CoreKeyboard::s_key_y, 'Y', nullptr, {utility::get_x_in_keyboard(5), utility::get_y_in_keyboard(0)}, KeyWidth, KeyHeight},
+//                {&CoreKeyboard::s_key_u, 'U', nullptr, {utility::get_x_in_keyboard(6), utility::get_y_in_keyboard(0)}, KeyWidth, KeyHeight},
+//                {&CoreKeyboard::s_key_i, 'I', nullptr, {utility::get_x_in_keyboard(7), utility::get_y_in_keyboard(0)}, KeyWidth, KeyHeight},
+//                {&CoreKeyboard::s_key_o, 'O', nullptr, {utility::get_x_in_keyboard(8), utility::get_y_in_keyboard(0)}, KeyWidth, KeyHeight},
+//                {&CoreKeyboard::s_key_p, 'P', nullptr, {utility::get_x_in_keyboard(9), utility::get_y_in_keyboard(0)}, KeyWidth, KeyHeight},
+//                //Row 2
+//                {&CoreKeyboard::s_key_a, 'A', nullptr, {utility::get_x_in_keyboard(0) + (KeyWidth / 2), utility::get_y_in_keyboard(1)}, KeyWidth, KeyHeight},
+//                {&CoreKeyboard::s_key_s, 'S', nullptr, {utility::get_x_in_keyboard(1) + (KeyWidth / 2), utility::get_y_in_keyboard(1)}, KeyWidth, KeyHeight},
+//                {&CoreKeyboard::s_key_d, 'D', nullptr, {utility::get_x_in_keyboard(2) + (KeyWidth / 2), utility::get_y_in_keyboard(1)}, KeyWidth, KeyHeight},
+//                {&CoreKeyboard::s_key_f, 'F', nullptr, {utility::get_x_in_keyboard(3) + (KeyWidth / 2), utility::get_y_in_keyboard(1)}, KeyWidth, KeyHeight},
+//                {&CoreKeyboard::s_key_g, 'G', nullptr, {utility::get_x_in_keyboard(4) + (KeyWidth / 2), utility::get_y_in_keyboard(1)}, KeyWidth, KeyHeight},
+//                {&CoreKeyboard::s_key_h, 'H', nullptr, {utility::get_x_in_keyboard(5) + (KeyWidth / 2), utility::get_y_in_keyboard(1)}, KeyWidth, KeyHeight},
+//                {&CoreKeyboard::s_key_j, 'J', nullptr, {utility::get_x_in_keyboard(6) + (KeyWidth / 2), utility::get_y_in_keyboard(1)}, KeyWidth, KeyHeight},
+//                {&CoreKeyboard::s_key_k, 'K', nullptr, {utility::get_x_in_keyboard(7) + (KeyWidth / 2), utility::get_y_in_keyboard(1)}, KeyWidth, KeyHeight},
+//                {&CoreKeyboard::s_key_l, 'L', nullptr, {utility::get_x_in_keyboard(8) + (KeyWidth / 2), utility::get_y_in_keyboard(1)}, KeyWidth, KeyHeight},
+//                //Row 3
+//                {&CoreKeyboard::s_key_caps, CapsId, nullptr, {utility::get_x_in_keyboard(0), utility::get_y_in_keyboard(2)}, CapsWidth, KeyHeight},
+//                {&CoreKeyboard::s_key_z, 'Z', nullptr, {utility::get_x_in_keyboard(1) + (KeyWidth / 2), utility::get_y_in_keyboard(2)}, KeyWidth, KeyHeight},
+//                {&CoreKeyboard::s_key_x, 'X', nullptr, {utility::get_x_in_keyboard(2) + (KeyWidth / 2), utility::get_y_in_keyboard(2)}, KeyWidth, KeyHeight},
+//                {&CoreKeyboard::s_key_c, 'C', nullptr, {utility::get_x_in_keyboard(3) + (KeyWidth / 2), utility::get_y_in_keyboard(2)}, KeyWidth, KeyHeight},
+//                {&CoreKeyboard::s_key_v, 'V', nullptr, {utility::get_x_in_keyboard(4) + (KeyWidth / 2), utility::get_y_in_keyboard(2)}, KeyWidth, KeyHeight},
+//                {&CoreKeyboard::s_key_b, 'B', nullptr, {utility::get_x_in_keyboard(5) + (KeyWidth / 2), utility::get_y_in_keyboard(2)}, KeyWidth, KeyHeight},
+//                {&CoreKeyboard::s_key_n, 'N', nullptr, {utility::get_x_in_keyboard(6) + (KeyWidth / 2), utility::get_y_in_keyboard(2)}, KeyWidth, KeyHeight},
+//                {&CoreKeyboard::s_key_m, 'M', nullptr, {utility::get_x_in_keyboard(7) + (KeyWidth / 2), utility::get_y_in_keyboard(2)}, KeyWidth, KeyHeight},
+//                {&CoreKeyboard::s_key_del, DelId, nullptr, {utility::get_x_in_keyboard(8) + (KeyWidth / 2), utility::get_y_in_keyboard(2)}, DelWidth, KeyHeight},
+//                //Row 4
+//                {&CoreKeyboard::s_key_esc, EscId, nullptr, {utility::get_x_in_keyboard(0), utility::get_y_in_keyboard(3)}, EscWidth, KeyHeight},
+//                {&CoreKeyboard::s_key_num_switch, NumSwitchId, nullptr, {utility::get_x_in_keyboard(2), utility::get_y_in_keyboard(3)}, SwitchWidth, KeyHeight},
+//                {&CoreKeyboard::s_key_space, SpaceId, nullptr, {utility::get_x_in_keyboard(3) + (KeyWidth / 2), utility::get_y_in_keyboard(3)}, SpaceWidth, KeyHeight},
+//                {&CoreKeyboard::s_key_dot, DotId, nullptr, {utility::get_x_in_keyboard(6) + (KeyWidth / 2), utility::get_y_in_keyboard(3)}, DotWidth, KeyHeight},
+//                {&CoreKeyboard::s_key_enter, EnterId, nullptr, {utility::get_x_in_keyboard(8), utility::get_y_in_keyboard(3)}, EnterWidth, KeyHeight},
+//                {nullptr, 0, nullptr, {0, 0}, 0, 0}
+//        };
+//        CoreWindow::window_tree CoreKeyboard::s_numpad_tree[] = /* NOLINT */
+//        {
+//                {&CoreKeyboard::s_key_1, '1', nullptr, {utility::get_x_in_keyboard(0), utility::get_y_in_keyboard(0)}, KeyWidth, KeyWidth},
+//                {&CoreKeyboard::s_key_2, '2', nullptr, {utility::get_x_in_keyboard(1), utility::get_y_in_keyboard(0)}, KeyWidth, KeyWidth},
+//                {&CoreKeyboard::s_key_3, '3', nullptr, {utility::get_x_in_keyboard(2), utility::get_y_in_keyboard(0)}, KeyWidth, KeyWidth},
+//                {&CoreKeyboard::s_key_4, '4', nullptr, {utility::get_x_in_keyboard(0), utility::get_y_in_keyboard(1)}, KeyWidth, KeyWidth},
+//                {&CoreKeyboard::s_key_5, '5', nullptr, {utility::get_x_in_keyboard(1), utility::get_y_in_keyboard(1)}, KeyWidth, KeyWidth},
+//                {&CoreKeyboard::s_key_6, '6', nullptr, {utility::get_x_in_keyboard(2), utility::get_y_in_keyboard(1)}, KeyWidth, KeyWidth},
+//                {&CoreKeyboard::s_key_7, '7', nullptr, {utility::get_x_in_keyboard(0), utility::get_y_in_keyboard(2)}, KeyWidth, KeyWidth},
+//                {&CoreKeyboard::s_key_8, '8', nullptr, {utility::get_x_in_keyboard(1), utility::get_y_in_keyboard(2)}, KeyWidth, KeyWidth},
+//                {&CoreKeyboard::s_key_9, '9', nullptr, {utility::get_x_in_keyboard(2), utility::get_y_in_keyboard(2)}, KeyWidth, KeyWidth},
+//
+//                {&CoreKeyboard::s_key_esc, EscId, nullptr, {utility::get_x_in_keyboard(0), utility::get_y_in_keyboard(3)}, KeyWidth, KeyHeight},
+//                {&CoreKeyboard::s_key_0, '0', nullptr, {utility::get_x_in_keyboard(1), utility::get_y_in_keyboard(3)}, KeyWidth, KeyHeight},
+//                {&CoreKeyboard::s_key_dot, DotId, nullptr, {utility::get_x_in_keyboard(2), utility::get_y_in_keyboard(3)}, KeyWidth, KeyHeight},
+//                {&CoreKeyboard::s_key_del, DelId, nullptr, {utility::get_x_in_keyboard(3), utility::get_y_in_keyboard(0)}, KeyWidth, KeyHeight * 2 + 2},
+//                {&CoreKeyboard::s_key_enter, EnterId, nullptr, {utility::get_x_in_keyboard(3), utility::get_y_in_keyboard(2)}, KeyWidth, KeyHeight * 2 + 2},
+//                {nullptr, 0, nullptr, {0, 0}, 0, 0}
+//        };
 
         CoreKeyboard::CONNECT_STATE CoreKeyboard::connect(CoreWindow *user, IdType resource_id, KEYBOARD_BOARD style)
         {
@@ -2836,12 +2935,12 @@ namespace Gal {
                         nullptr,
                         {rect.distance_of_left(0), rect.distance_of_top(parent_rect.get_height() - KeyboardHeight - 1)},
                         KeyboardWidth, KeyboardHeight,
-                        CoreKeyboard::s_keyboard_tree);
+                        nullptr/*CoreKeyboard::s_keyboard_tree*/);
             }
             else if(style == KEYBOARD_BOARD::NUM_ONLY)
             {
                 //Place keyboard below the user window.
-                return CoreWindow::connect(user, resource_id, nullptr, {0, rect.get_height()}, NumpadWidth, NumpadHeight, CoreKeyboard::s_numpad_tree);
+                return CoreWindow::connect(user, resource_id, nullptr, {0, rect.get_height()}, NumpadWidth, NumpadHeight, nullptr/*CoreKeyboard::s_numpad_tree*/);
             }
             else
             {
@@ -2954,7 +3053,7 @@ namespace Gal {
                 }
             }
 
-            void on_touch(CorePoint point, TOUCH_ACTION action) override {
+            void on_touch(CorePoint<CoreSurface::PixelPositionType> point, TOUCH_ACTION action) override {
                 (action == CoreWindow::TOUCH_ACTION::DOWN) ? on_touch_down(point) : on_touch_up(point);
             }
 
@@ -2989,7 +3088,7 @@ namespace Gal {
                 s_keyboard.show_window();
             }
 
-            void on_touch_down(CorePoint point) {
+            void on_touch_down(CorePoint<CoreSurface::PixelPositionType> point) {
                 if (m_window_rect.is_in_rect(point)) {
                     //click edit box
                     if (m_state == CoreWindow::WINDOW_STATE::NORMAL) {
@@ -3008,7 +3107,7 @@ namespace Gal {
                 }
             }
 
-            void on_touch_up(CorePoint point) {
+            void on_touch_up(CorePoint<CoreSurface::PixelPositionType> point) {
                 if (m_state == CoreWindow::WINDOW_STATE::FOCUSED) {
                     m_state = CoreWindow::WINDOW_STATE::PUSHED;
                     on_paint();
@@ -3153,7 +3252,7 @@ namespace Gal {
                 }
             }
 
-            void on_touch(CorePoint point, TOUCH_ACTION action) override {
+            void on_touch(CorePoint<CoreSurface::PixelPositionType> point, TOUCH_ACTION action) override {
                 (action == CoreWindow::TOUCH_ACTION::DOWN) ? on_touch_down(point) : on_touch_up(point);
             }
 
@@ -3184,7 +3283,7 @@ namespace Gal {
                 }
             }
 
-            void on_touch_down(CorePoint point) {
+            void on_touch_down(CorePoint<CoreSurface::PixelPositionType> point) {
                 if (m_window_rect.is_in_rect(point)) {
                     //click base
                     if (m_state == CoreWindow::WINDOW_STATE::NORMAL) {
@@ -3204,7 +3303,7 @@ namespace Gal {
                 }
             }
 
-            void on_touch_up(CorePoint point) {
+            void on_touch_up(CorePoint<CoreSurface::PixelPositionType> point) {
                 if (m_state == CoreWindow::WINDOW_STATE::FOCUSED) {
                     m_state = CoreWindow::WINDOW_STATE::PUSHED;
                     on_paint();
@@ -3229,8 +3328,8 @@ namespace Gal {
 
             size_t m_select_item;
             std::vector<const char *> m_item_array;
-            CoreRect m_list_window_rect;//rect relative to parent wnd
-            CoreRect m_list_screen_rect;//rect relative to physical screen(framebuffer)
+            CoreRect<CoreSurface::PixelPositionType> m_list_window_rect;//rect relative to parent wnd
+            CoreRect<CoreSurface::PixelPositionType> m_list_screen_rect;//rect relative to physical screen(framebuffer)
             WindowCallback m_on_change;
         };
     }
@@ -3297,8 +3396,8 @@ namespace Gal {
 
             ADD_SLIDE_STATE add_slide(
                     CoreWindow* slide, IdType resource_id,
-                    CorePoint point,
-                    int width, int height,
+                    CorePoint<CoreSurface::PixelPositionType> point,
+                    CoreSurface::SurfaceSizeType width, CoreSurface::SurfaceSizeType height,
                     CoreWindow::window_tree* child_tree = nullptr,
                     CoreSurface::Z_ORDER_LEVEL max_z_order = CoreSurface::Z_ORDER_LEVEL::LOWEST)
             {
@@ -3349,7 +3448,7 @@ namespace Gal {
                 }
             }
 
-            void on_touch(CorePoint point, TOUCH_ACTION action) override;
+            void on_touch(CorePoint<CoreSurface::PixelPositionType> point, TOUCH_ACTION action) override;
 
             void on_navigate(NAVIGATION_KEY key) override
             {
@@ -3386,7 +3485,7 @@ namespace Gal {
                   m_down_x(0), m_move_x(0),
                   m_state(TOUCH_STATE::IDLE), m_slide_group(group) {};
 
-            bool handle_swipe(CorePoint point, CoreKeyboard::TOUCH_ACTION action)
+            bool handle_swipe(CorePoint<CoreSurface::PixelPositionType> point, CoreKeyboard::TOUCH_ACTION action)
             {
                 auto [x, _] = point;
                 if(action == CoreWindow::TOUCH_ACTION::DOWN)
@@ -3419,7 +3518,7 @@ namespace Gal {
             }
 
         private:
-            bool on_move(int x)
+            bool on_move(CoreSurface::PixelPositionType x)
             {
                 if(m_slide_group == nullptr) {return true;}
                 if(utility::abs(x - m_move_x) < GestureMoveThreshold) { return false;}
@@ -3430,7 +3529,7 @@ namespace Gal {
                 return false;
             }
 
-            bool on_swipe(int x)
+            bool on_swipe(CoreSurface::PixelPositionType x)
             {
                 if(m_slide_group == nullptr) {return true;}
                 if((m_down_x == m_move_x) && utility::abs(x - m_down_x) < GestureMoveThreshold) {return true;}
@@ -3545,8 +3644,8 @@ namespace Gal {
                 }
             }
 
-            int m_down_x;
-            int m_move_x;
+            CoreSurface::PixelPositionType m_down_x;
+            CoreSurface::PixelPositionType m_move_x;
             TOUCH_STATE m_state;
             CoreSlideGroup* m_slide_group;
         };
@@ -3557,7 +3656,7 @@ namespace Gal {
               m_gesture(new CoreGesture(this)),
               m_slides({nullptr}){}
 
-        void CoreSlideGroup::on_touch(CorePoint point, TOUCH_ACTION action)
+        void CoreSlideGroup::on_touch(CorePoint<CoreSurface::PixelPositionType> point, TOUCH_ACTION action)
         {
             auto [x, y] = point;
             x = m_window_rect.distance_of_left(x);
@@ -3572,7 +3671,7 @@ namespace Gal {
         class CoreSpinBoxButton : public CoreButton
         {
             friend class CoreSpinBox;
-            void on_touch(CorePoint point, TOUCH_ACTION action) override;
+            void on_touch(CorePoint<CoreSurface::PixelPositionType> point, TOUCH_ACTION action) override;
             CoreSpinBox* m_spin_box;
         };
 
@@ -3662,7 +3761,7 @@ namespace Gal {
             WindowCallback m_on_change;
         };
 
-        void CoreSpinBoxButton::on_touch(CorePoint point, TOUCH_ACTION action)
+        void CoreSpinBoxButton::on_touch(CorePoint<CoreSurface::PixelPositionType> point, TOUCH_ACTION action)
         {
             m_spin_box->on_arrow_button_clicked(action);
             CoreButton::on_touch(point, action);
@@ -3714,9 +3813,9 @@ namespace Gal {
 
             [[nodiscard]] size_t get_column_size() const {return m_column_widths.size();}
 
-            CoreRect get_item_rect(size_t row, size_t column)
+            CoreRect<CoreSurface::PixelPositionType> get_item_rect(size_t row, size_t column)
             {
-                static CoreRect rect;
+                static CoreRect<CoreSurface::PixelPositionType> rect;
                 if(row >= m_row_heights.size() || column >= m_column_widths.size())
                 {
                     return rect;
