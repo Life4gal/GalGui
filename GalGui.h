@@ -1,4 +1,5 @@
-#pragma once
+#ifndef GALGUI
+#define GALGUI
 
 #include <functional>
 #include <numeric>
@@ -778,7 +779,7 @@ namespace Gal {
                 return s_color_map[static_cast<std::size_t>(index)];
             }
 
-//        private:
+        private:
             static std::array<const font_info *, static_cast<std::size_t>(FONT_TYPE::MAX)> s_font_map;
             static std::array<const bitmap_info *, static_cast<std::size_t>(BITMAP_TYPE::BITMAP_MAX)> s_bitmap_map;
             static std::array<ColorType, static_cast<std::size_t>(COLOR_TYPE::MAX)> s_color_map;
@@ -3865,3 +3866,9 @@ namespace Gal {
         };
     }
 }
+
+std::array<const Gal::detail::CoreTheme::font_info *, static_cast<std::size_t>(Gal::detail::CoreTheme::FONT_TYPE::MAX)> s_font_map;
+std::array<const Gal::detail::CoreTheme::bitmap_info *, static_cast<std::size_t>(Gal::detail::CoreTheme::BITMAP_TYPE::BITMAP_MAX)> s_bitmap_map;
+std::array<Gal::ColorType, static_cast<std::size_t>(Gal::detail::CoreTheme::COLOR_TYPE::MAX)> s_color_map;
+
+#endif
