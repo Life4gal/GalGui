@@ -1,4 +1,5 @@
 #include <iostream>
+#include <internal/point.hpp>
 
 int main()
 {

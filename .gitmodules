@@ -1,0 +1,4 @@
+[submodule "lib/galLibrary"]
+	path = lib/galLibrary
+	url = https://github.com/Life4gal/galLibrary.git
+
